@@ -1,6 +1,11 @@
 // مفرد PrismaClient — Prisma 7 يتطلب driver adapter (@prisma/adapter-pg)
-// ملاحظة: Supabase يفرض TLS — pg لا يفعّله تلقائياً في كل البيئات،
-// لذا نمرّر ssl صراحةً كحماية إضافية بجانب ?sslmode=require في URL
+//
+// ملاحظتان مهمّتان عن Supabase + pg:
+// 1) Supabase يقدّم certificate من سلسلة Amazon RDS — pg الافتراضي
+//    يرفضه كـself-signed. لذا نمرّر { ssl: { rejectUnauthorized: false } }.
+// 2) إن احتوت DATABASE_URL على ?sslmode=require, فإن pg-connection-string
+//    يعتبرها alias لـverify-full ويتجاوز ssl options المُمرَّرة. نزيلها
+//    من URL قبل التمرير لأن الـadapter يدير SSL مباشرةً.
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
@@ -9,7 +14,12 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function buildClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL ?? "";
+  let connectionString = process.env.DATABASE_URL ?? "";
+  // إزالة sslmode/uselibpqcompat — نتحكّم بـSSL عبر adapter صراحةً
+  connectionString = connectionString
+    .replace(/[?&](sslmode|uselibpqcompat)=[^&]*/g, "")
+    .replace(/\?$/, "");
+
   const adapter = new PrismaPg({
     connectionString,
     ssl: { rejectUnauthorized: false },
