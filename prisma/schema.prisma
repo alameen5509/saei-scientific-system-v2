@@ -202,3 +202,31 @@ enum ReviewDecision {
   MAJOR_REVISION  // تعديلات جوهرية
   REJECT          // رفض
 }
+
+// ============================================================
+// سجل التدقيق — يلتقط عمليات حساسة كـImpersonation
+// ============================================================
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  tenantId  String      @default("saei")
+  action    AuditAction
+  actorId   String      // مَن نفّذ الإجراء (الأدمن في الانتحال)
+  targetId  String?     // المستخدم المستهدف (المنتحل)
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  endedAt   DateTime?   // وقت الإنهاء (للجلسات المؤقتة كالانتحال)
+
+  @@index([tenantId])
+  @@index([actorId])
+  @@index([targetId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum AuditAction {
+  IMPERSONATE_START
+  IMPERSONATE_END
+}

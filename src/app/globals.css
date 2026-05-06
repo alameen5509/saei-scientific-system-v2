@@ -74,6 +74,21 @@ body {
     direction: rtl;
   }
 
+  /* وضع الانتحال (للقراءة فقط) — تخفيف بصري لعناصر التحكم
+     لكن مع إبقاء الأزرار في الشريط البرتقالي والروابط فعّالة */
+  body.impersonating button:not([data-impersonation-allowed]):not(:disabled),
+  body.impersonating input:not([type="search"]):not(:disabled),
+  body.impersonating textarea:not(:disabled),
+  body.impersonating select:not(:disabled) {
+    opacity: 0.7;
+    cursor: not-allowed !important;
+  }
+  body.impersonating [role="alert"][data-impersonation-allowed] button,
+  body.impersonating [data-impersonation-allowed] button {
+    opacity: 1 !important;
+    cursor: pointer !important;
+  }
+
   /* تدرج Hero — مطابق لموقع ساعي */
   .bg-saei-hero {
     background: linear-gradient(135deg, #00d4dd 0%, #0ea5e9 100%);

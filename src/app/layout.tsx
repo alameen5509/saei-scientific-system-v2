@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Cairo, Amiri } from "next/font/google";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import { ImpersonationProvider } from "@/components/providers/ImpersonationContext";
 import { ToastProvider } from "@/components/ui/toast";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import "./globals.css";
 
 // خط Cairo للواجهة العامة
@@ -48,7 +50,12 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-saei-cream text-saei-ink antialiased">
         <SessionProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ImpersonationProvider>
+            <ToastProvider>
+              <ImpersonationBanner />
+              {children}
+            </ToastProvider>
+          </ImpersonationProvider>
         </SessionProvider>
       </body>
     </html>

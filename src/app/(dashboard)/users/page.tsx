@@ -2,6 +2,7 @@
 
 // صفحة إدارة المستخدمين — sortable table + AlertDialog + skeleton + empty
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Plus,
@@ -12,6 +13,8 @@ import {
   ShieldCheck,
   Users as UsersIcon,
   Mail,
+  KeyRound,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,9 +46,44 @@ import { cn, formatDate } from "@/lib/utils";
 type SortKey = "name" | "email" | "role" | "createdAt";
 
 export default function UsersPage() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
+  const router = useRouter();
   const me = session?.user;
   const toast = useToast();
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
+
+  async function handleImpersonate(u: UserRow) {
+    if (u.role === "ADMIN") {
+      toast.error("لا يمكن انتحال حساب مدير آخر");
+      return;
+    }
+    if (impersonatingId) return;
+    setImpersonatingId(u.id);
+    try {
+      const res = await fetch(`/api/admin/impersonate/${u.id}`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "تعذّر بدء جلسة الانتحال");
+      }
+
+      // تحديث الـtoken عبر NextAuth update() — يضع المستخدم المنتحل
+      await update({ impersonate: u.id });
+
+      toast.success("تمّ التحويل", {
+        description: `تتصفح الآن كـ${u.name ?? u.email}`,
+      });
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (e) {
+      toast.error("فشل بدء الانتحال", {
+        description: e instanceof Error ? e.message : undefined,
+      });
+      setImpersonatingId(null);
+    }
+  }
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -332,6 +370,24 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {/* زر الانتحال — يُخفى للمدير ولنفس المستخدم */}
+                          {u.role !== "ADMIN" && !isMe && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => void handleImpersonate(u)}
+                              aria-label="دخول كهذا المستخدم"
+                              title="🔓 دخول كهذا المستخدم"
+                              disabled={!!impersonatingId}
+                              className="h-8 w-8"
+                            >
+                              {impersonatingId === u.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                              ) : (
+                                <KeyRound className="h-4 w-4 text-amber-600" />
+                              )}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -402,6 +458,23 @@ export default function UsersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-saei-purple-100">
+                    {u.role !== "ADMIN" && !isMe && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleImpersonate(u)}
+                        disabled={!!impersonatingId}
+                        className="flex-1 text-amber-700 hover:bg-amber-50"
+                        title="دخول كهذا المستخدم"
+                      >
+                        {impersonatingId === u.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <KeyRound className="h-3.5 w-3.5" />
+                        )}
+                        دخول
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
