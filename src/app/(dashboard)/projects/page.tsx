@@ -1,9 +1,10 @@
 "use client";
 
-// صفحة إدارة الأعمال العلمية
-// — sortable columns + AlertDialog للحذف + skeleton مفصّل + empty state
-// — toast من النظام العام
+// صفحة الأعمال العلمية
+// — للمدير والمنسقين: إدارة كاملة
+// — للباحث: عرض أعماله الخاصة فقط (للقراءة، البيانات تأتي مفلترة من السيرفر)
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Plus,
   Search,
@@ -56,6 +57,8 @@ import { toArabicDigits } from "@/lib/utils";
 const PAGE_SIZE = 8;
 
 export default function ProjectsPage() {
+  const { data: session } = useSession();
+  const isResearcher = session?.user?.role === "RESEARCHER";
   const {
     works,
     loading,
@@ -251,10 +254,12 @@ export default function ProjectsPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-saei-purple-700 mb-1">
-            الأعمال العلمية
+            {isResearcher ? "أعمالي العلمية" : "الأعمال العلمية"}
           </h1>
           <p className="text-stone-600 text-sm">
-            إدارة شاملة لجميع الأعمال العلمية في مؤسسة ساعي
+            {isResearcher
+              ? "قائمة الأعمال العلمية المُسنَدة إليك"
+              : "إدارة شاملة لجميع الأعمال العلمية في مؤسسة ساعي"}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -270,11 +275,13 @@ export default function ProjectsPage() {
             />
             تحديث
           </Button>
-          <Button variant="primary" size="md" onClick={openAdd}>
-            <Plus className="h-4 w-4" />
-            <span className="hidden xs:inline sm:inline">إضافة عمل علمي جديد</span>
-            <span className="xs:hidden sm:hidden">إضافة</span>
-          </Button>
+          {!isResearcher && (
+            <Button variant="primary" size="md" onClick={openAdd}>
+              <Plus className="h-4 w-4" />
+              <span className="hidden xs:inline sm:inline">إضافة عمل علمي جديد</span>
+              <span className="xs:hidden sm:hidden">إضافة</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -370,13 +377,23 @@ export default function ProjectsPage() {
         works.length === 0 ? (
           <EmptyState
             icon={FolderKanban}
-            title="لا توجد أعمال علمية بعد"
-            description="ابدأ بإضافة أول عمل علمي لتراكم سير الإنتاج العلمي للمؤسسة."
+            title={
+              isResearcher
+                ? "لا توجد أعمال علمية مُسنَدة إليك بعد"
+                : "لا توجد أعمال علمية بعد"
+            }
+            description={
+              isResearcher
+                ? "تواصل مع منسق الأبحاث لإسناد عمل علمي إليك."
+                : "ابدأ بإضافة أول عمل علمي لتراكم سير الإنتاج العلمي للمؤسسة."
+            }
             action={
-              <Button variant="primary" onClick={openAdd}>
-                <Plus className="h-4 w-4" />
-                إضافة عمل علمي جديد
-              </Button>
+              isResearcher ? null : (
+                <Button variant="primary" onClick={openAdd}>
+                  <Plus className="h-4 w-4" />
+                  إضافة عمل علمي جديد
+                </Button>
+              )
             }
             variant="subtle"
           />
@@ -405,7 +422,10 @@ export default function ProjectsPage() {
             onEdit={handleEdit}
             onAdvance={handleAdvance}
             onDelete={requestDelete}
-            onAssignReviewers={(w) => setAssignTarget(w)}
+            onAssignReviewers={
+              isResearcher ? undefined : (w) => setAssignTarget(w)
+            }
+            readOnly={isResearcher}
           />
 
           <Pagination

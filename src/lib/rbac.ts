@@ -57,6 +57,11 @@ export function canManageWorks(role: UserRole | undefined): boolean {
   return !!role && WORKS_MANAGERS.includes(role);
 }
 
+// الباحث يستطيع رؤية صفحة الأعمال (لكن مقصورة على أعماله) لكن لا يديرها
+export function canViewWorks(role: UserRole | undefined): boolean {
+  return !!role && (WORKS_MANAGERS.includes(role) || role === "RESEARCHER");
+}
+
 export function canManageUsers(role: UserRole | undefined): boolean {
   return role === "ADMIN";
 }
@@ -76,7 +81,8 @@ export function canReview(role: UserRole | undefined): boolean {
 
 export const PATH_ROLE_MAP: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/users", roles: ["ADMIN"] },
-  { prefix: "/projects", roles: WORKS_MANAGERS },
+  // /projects: المنسقون والمدير يديرون كل الأعمال — الباحث يرى أعماله الخاصة فقط
+  { prefix: "/projects", roles: [...WORKS_MANAGERS, "RESEARCHER"] },
   { prefix: "/researchers", roles: WORKS_MANAGERS },
   { prefix: "/tasks", roles: WORKS_MANAGERS },
   { prefix: "/reports", roles: WORKS_MANAGERS },

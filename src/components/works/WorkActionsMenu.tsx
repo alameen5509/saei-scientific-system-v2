@@ -27,6 +27,8 @@ interface Props {
   onAdvance: (w: ScientificWork) => void;
   onDelete: (w: ScientificWork) => void;
   onAssignReviewers?: (w: ScientificWork) => void;
+  /** يخفي إجراءات الكتابة (تعديل/حذف/نقل) — للباحث في وضع المشاهدة */
+  readOnly?: boolean;
 }
 
 export function WorkActionsMenu({
@@ -36,6 +38,7 @@ export function WorkActionsMenu({
   onAdvance,
   onDelete,
   onAssignReviewers,
+  readOnly = false,
 }: Props) {
   const next = nextStage(work.stage);
 
@@ -58,30 +61,34 @@ export function WorkActionsMenu({
           <Eye className="h-4 w-4 text-saei-purple-500" />
           عرض التفاصيل
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEdit(work)}>
-          <Pencil className="h-4 w-4 text-saei-purple-500" />
-          تعديل
-        </DropdownMenuItem>
-        {onAssignReviewers && (
-          <DropdownMenuItem onSelect={() => onAssignReviewers(work)}>
-            <Users className="h-4 w-4 text-saei-teal" />
-            تعيين محكمين
-          </DropdownMenuItem>
+        {!readOnly && (
+          <>
+            <DropdownMenuItem onSelect={() => onEdit(work)}>
+              <Pencil className="h-4 w-4 text-saei-purple-500" />
+              تعديل
+            </DropdownMenuItem>
+            {onAssignReviewers && (
+              <DropdownMenuItem onSelect={() => onAssignReviewers(work)}>
+                <Users className="h-4 w-4 text-saei-teal" />
+                تعيين محكمين
+              </DropdownMenuItem>
+            )}
+            {next && (
+              <DropdownMenuItem onSelect={() => onAdvance(work)}>
+                <ArrowLeft className="h-4 w-4 text-saei-teal" />
+                نقل إلى: {STAGE_LABEL[next]}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => onDelete(work)}
+              className="text-red-700 focus:bg-red-50 focus:text-red-800"
+            >
+              <Trash2 className="h-4 w-4" />
+              حذف
+            </DropdownMenuItem>
+          </>
         )}
-        {next && (
-          <DropdownMenuItem onSelect={() => onAdvance(work)}>
-            <ArrowLeft className="h-4 w-4 text-saei-teal" />
-            نقل إلى: {STAGE_LABEL[next]}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => onDelete(work)}
-          className="text-red-700 focus:bg-red-50 focus:text-red-800"
-        >
-          <Trash2 className="h-4 w-4" />
-          حذف
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -22,7 +22,24 @@ export async function GET() {
     );
   }
   try {
+    // ————— تصفية حسب الدور —————
+    // الباحث يرى أعماله فقط؛ المدير والمنسقون يرون الكل.
+    // نستعلم Researcher.id المرتبط بـuser.id ثم نفرض where.researcherId.
+    let where: { researcherId?: string } = {};
+    if (me.role === "RESEARCHER") {
+      const myResearcher = await prisma.researcher.findUnique({
+        where: { userId: me.id },
+        select: { id: true },
+      });
+      if (!myResearcher) {
+        // باحث بلا ملف Researcher — لا أعمال له، نرجع قائمة فارغة لا 500
+        return NextResponse.json({ ok: true, works: [] });
+      }
+      where = { researcherId: myResearcher.id };
+    }
+
     const rows = await prisma.scientificWork.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       include: { researcher: { select: { displayName: true } } },
     });

@@ -45,6 +45,8 @@ interface Props {
   onAdvance: (w: ScientificWork) => void;
   onDelete: (w: ScientificWork) => void;
   onAssignReviewers?: (w: ScientificWork) => void;
+  /** يُمرَّر إلى WorkActionsMenu لإخفاء الكتابة (للباحث) */
+  readOnly?: boolean;
 }
 
 function ProgressBar({ value }: { value: number }) {
@@ -99,6 +101,7 @@ export function WorksTable({
   onAdvance,
   onDelete,
   onAssignReviewers,
+  readOnly = false,
 }: Props) {
   return (
     <>
@@ -193,6 +196,7 @@ export function WorksTable({
                     onAdvance={onAdvance}
                     onDelete={onDelete}
                     onAssignReviewers={onAssignReviewers}
+                    readOnly={readOnly}
                   />
                 </TableCell>
               </TableRow>
@@ -231,6 +235,7 @@ export function WorksTable({
                   onAdvance={onAdvance}
                   onDelete={onDelete}
                   onAssignReviewers={onAssignReviewers}
+                  readOnly={readOnly}
                 />
               </div>
 

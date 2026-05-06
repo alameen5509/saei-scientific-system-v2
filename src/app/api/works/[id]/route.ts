@@ -26,12 +26,19 @@ export async function GET(_: Request, { params }: Params) {
   try {
     const work = await prisma.scientificWork.findUnique({
       where: { id: params.id },
-      include: { researcher: { select: { displayName: true } } },
+      include: { researcher: { select: { displayName: true, userId: true } } },
     });
     if (!work) {
       return NextResponse.json(
         { ok: false, error: "العمل غير موجود" },
         { status: 404 }
+      );
+    }
+    // الباحث لا يستطيع قراءة عمل غير خاص به
+    if (me.role === "RESEARCHER" && work.researcher.userId !== me.id) {
+      return NextResponse.json(
+        { ok: false, error: "غير مسموح بالوصول لهذا العمل" },
+        { status: 403 }
       );
     }
     return NextResponse.json({ ok: true, work: serializeWork(work) });

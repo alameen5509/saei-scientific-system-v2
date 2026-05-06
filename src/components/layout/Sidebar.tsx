@@ -29,7 +29,8 @@ const items: NavItem[] = [
     href: "/projects",
     label: "الأعمال العلمية",
     icon: FolderKanban,
-    roles: ["ADMIN", "RESEARCH_COORDINATOR", "JOURNAL_COORDINATOR"],
+    // الباحث يرى الصفحة لكن مقصورة على أعماله فقط (تصفية على السيرفر)
+    roles: ["ADMIN", "RESEARCH_COORDINATOR", "JOURNAL_COORDINATOR", "RESEARCHER"],
   },
   {
     href: "/researchers",
