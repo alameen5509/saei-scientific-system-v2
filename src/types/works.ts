@@ -1,13 +1,19 @@
 // أنواع وقيم الأعمال العلمية في مؤسسة ساعي
+// — ١٢ مرحلة سير عمل كاملة من الاقتراح إلى الأرشفة
 
 export type WorkStage =
-  | "PROPOSED"
-  | "RESEARCH"
-  | "WRITING"
-  | "REVIEW"
-  | "EDITING"
-  | "PUBLISHED"
-  | "ARCHIVED";
+  | "PROPOSED"             // ١. مقترح
+  | "RESEARCH"             // ٢. قيد البحث
+  | "WRITING"              // ٣. قيد الكتابة
+  | "FIRST_SUBMISSION"     // ٤. تسليم أوّلي
+  | "UNDER_REVIEW"         // ٥. قيد التحكيم
+  | "REVIEW_FEEDBACK"      // ٦. تجميع ملاحظات المحكمين
+  | "REVISION_REQUESTED"   // ٧. مطلوب تعديل
+  | "REVISED_SUBMISSION"   // ٨. تسليم منقّح
+  | "APPROVED"             // ٩. مُعتَمد للنشر
+  | "IN_PRODUCTION"        // ١٠. قيد الإنتاج/الطباعة
+  | "PUBLISHED"            // ١١. منشور
+  | "ARCHIVED";            // ١٢. مؤرشف
 
 export type WorkTrack = "BOOK" | "JOURNAL" | "THESIS" | "ARTICLE";
 
@@ -43,8 +49,13 @@ export const STAGE_LABEL: Record<WorkStage, string> = {
   PROPOSED: "مقترح",
   RESEARCH: "قيد البحث",
   WRITING: "قيد الكتابة",
-  REVIEW: "قيد المراجعة",
-  EDITING: "قيد التحرير",
+  FIRST_SUBMISSION: "تسليم أوّلي",
+  UNDER_REVIEW: "قيد التحكيم",
+  REVIEW_FEEDBACK: "ملاحظات المحكمين",
+  REVISION_REQUESTED: "مطلوب تعديل",
+  REVISED_SUBMISSION: "تسليم منقّح",
+  APPROVED: "معتمد للنشر",
+  IN_PRODUCTION: "قيد الإنتاج",
   PUBLISHED: "منشور",
   ARCHIVED: "مؤرشف",
 };
@@ -69,14 +80,20 @@ export const SPECIALTY_LABEL: Record<WorkSpecialty, string> = {
 
 // ————————————————————————————————
 // تسلسل المراحل + الانتقال
+// — ١٢ مرحلة بترتيب صارم
 // ————————————————————————————————
 
 export const STAGE_ORDER: WorkStage[] = [
   "PROPOSED",
   "RESEARCH",
   "WRITING",
-  "REVIEW",
-  "EDITING",
+  "FIRST_SUBMISSION",
+  "UNDER_REVIEW",
+  "REVIEW_FEEDBACK",
+  "REVISION_REQUESTED",
+  "REVISED_SUBMISSION",
+  "APPROVED",
+  "IN_PRODUCTION",
   "PUBLISHED",
   "ARCHIVED",
 ];
@@ -85,6 +102,16 @@ export function nextStage(current: WorkStage): WorkStage | null {
   const i = STAGE_ORDER.indexOf(current);
   if (i < 0 || i >= STAGE_ORDER.length - 1) return null;
   return STAGE_ORDER[i + 1];
+}
+
+// المراحل التي تتطلّب تسليم ملف من الباحث
+export const SUBMISSION_STAGES: WorkStage[] = [
+  "FIRST_SUBMISSION",
+  "REVISED_SUBMISSION",
+];
+
+export function isSubmissionStage(stage: WorkStage): boolean {
+  return SUBMISSION_STAGES.includes(stage);
 }
 
 // ————————————————————————————————
@@ -116,9 +143,17 @@ export function stageTone(stage: WorkStage): BadgeTone {
     case "RESEARCH":
     case "WRITING":
       return "amber";
-    case "REVIEW":
-    case "EDITING":
+    case "FIRST_SUBMISSION":
+    case "REVISED_SUBMISSION":
+      return "teal";
+    case "UNDER_REVIEW":
+    case "REVIEW_FEEDBACK":
       return "gold";
+    case "REVISION_REQUESTED":
+      return "red";
+    case "APPROVED":
+    case "IN_PRODUCTION":
+      return "teal";
     case "PUBLISHED":
       return "green";
     case "ARCHIVED":

@@ -3,6 +3,8 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/api-auth";
 import { assignReviewer } from "@/lib/reviews-service";
+import { prisma } from "@/lib/prisma";
+import { notify } from "@/lib/notify";
 
 export const runtime = "nodejs";
 
@@ -49,6 +51,26 @@ export async function POST(req: Request, { params }: Params) {
         { status: 400 }
       );
     }
+
+    // إشعار للمحكم — مجهول الهوية للباحث، لا نُرسل إشعاراً للباحث هنا
+    const reviewer = await prisma.reviewer.findUnique({
+      where: { id: reviewerId },
+      include: { user: { select: { id: true } } },
+    });
+    const work = await prisma.scientificWork.findUnique({
+      where: { id: params.id },
+      select: { title: true, code: true },
+    });
+    if (reviewer?.user.id && work) {
+      await notify({
+        userId: reviewer.user.id,
+        kind: "REVIEW_ASSIGNED",
+        title: `تمّ إسناد عمل علمي إليك للتحكيم`,
+        body: `${work.code} — ${work.title}${due ? ` (الموعد: ${due.toISOString().slice(0, 10)})` : ""}`,
+        link: `/reviews`,
+      });
+    }
+
     return NextResponse.json(
       { ok: true, reviewId: result.reviewId },
       { status: 201 }

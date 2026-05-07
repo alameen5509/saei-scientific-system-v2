@@ -209,7 +209,7 @@ async function main() {
   // لكل عمل في مرحلة REVIEW أو EDITING: نعيّن محكماً مطابقاً للتخصص
   console.log("📝 إنشاء مراجعات تجريبية...");
   const worksToReview = await prisma.scientificWork.findMany({
-    where: { stageCode: { in: ["REVIEW", "EDITING"] } },
+    where: { stageCode: { in: ["UNDER_REVIEW", "REVIEW_FEEDBACK"] } },
     select: { id: true, specialty: true, deadline: true },
   });
   let reviewsCreated = 0;

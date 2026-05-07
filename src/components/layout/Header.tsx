@@ -3,7 +3,7 @@
 // شريط علوي في لوحة التحكم — بحث + إشعارات + قائمة المستخدم
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { Bell, Search, UserCircle2, LogOut, UserCog } from "lucide-react";
+import { Search, UserCircle2, LogOut, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ROLE_LABEL, ROLE_TONE } from "@/lib/rbac";
+import { NotificationsBell } from "./NotificationsBell";
 
 export function Header() {
   const { data: session, status } = useSession();
@@ -33,9 +34,7 @@ export function Header() {
         </div>
       </div>
 
-      <Button variant="ghost" size="icon" aria-label="الإشعارات">
-        <Bell className="h-5 w-5" />
-      </Button>
+      <NotificationsBell />
 
       {/* قائمة المستخدم */}
       <DropdownMenu>

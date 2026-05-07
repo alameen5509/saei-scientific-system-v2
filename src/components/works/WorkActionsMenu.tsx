@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Trash2,
   Users,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,8 @@ interface Props {
   onAdvance: (w: ScientificWork) => void;
   onDelete: (w: ScientificWork) => void;
   onAssignReviewers?: (w: ScientificWork) => void;
+  /** يفتح نافذة التسليمات — متاح للباحث على عمله وللإدارة */
+  onSubmissions?: (w: ScientificWork) => void;
   /** يخفي إجراءات الكتابة (تعديل/حذف/نقل) — للباحث في وضع المشاهدة */
   readOnly?: boolean;
 }
@@ -38,6 +41,7 @@ export function WorkActionsMenu({
   onAdvance,
   onDelete,
   onAssignReviewers,
+  onSubmissions,
   readOnly = false,
 }: Props) {
   const next = nextStage(work.stage);
@@ -61,6 +65,12 @@ export function WorkActionsMenu({
           <Eye className="h-4 w-4 text-saei-purple-500" />
           عرض التفاصيل
         </DropdownMenuItem>
+        {onSubmissions && (
+          <DropdownMenuItem onSelect={() => onSubmissions(work)}>
+            <FileText className="h-4 w-4 text-saei-teal" />
+            التسليمات
+          </DropdownMenuItem>
+        )}
         {!readOnly && (
           <>
             <DropdownMenuItem onSelect={() => onEdit(work)}>

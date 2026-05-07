@@ -67,12 +67,16 @@ export const config = {
     "/profile/:path*",
     "/reviewers/:path*",
     "/reviews/:path*",
-    // كل API ما عدا /api/auth (يحتاج للوصول لصفحة الدخول قبل وجود token)
+    // إضافة الصفحات الجديدة للمصفوفة (12-stage features)
+    "/contracts/:path*",
+    // كل API ما عدا /api/auth و /api/cron (يحتاج Bearer CRON_SECRET بدلاً من token)
     "/api/admin/:path*",
     "/api/users/:path*",
     "/api/works/:path*",
     "/api/reviewers/:path*",
     "/api/reviews/:path*",
     "/api/profile/:path*",
+    "/api/contracts/:path*",
+    "/api/notifications/:path*",
   ],
 };

@@ -100,15 +100,9 @@ export async function findOrCreateResearcherByName(
 // التحقق من المدخلات
 // ————————————————————————————————
 
-const VALID_STAGES = [
-  "PROPOSED",
-  "RESEARCH",
-  "WRITING",
-  "REVIEW",
-  "EDITING",
-  "PUBLISHED",
-  "ARCHIVED",
-] as const;
+// VALID_STAGES يستورد من types/works ليبقى المصدر واحداً
+import { STAGE_ORDER as STAGE_LIST } from "@/types/works";
+const VALID_STAGES = STAGE_LIST;
 const VALID_TRACKS = ["BOOK", "JOURNAL", "THESIS", "ARTICLE"] as const;
 
 export interface WorkInput {

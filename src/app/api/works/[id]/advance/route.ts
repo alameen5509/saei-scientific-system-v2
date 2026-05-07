@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
 import { findNextStageCode, serializeWork } from "@/lib/works-service";
+import { notify, notifyRole } from "@/lib/notify";
+import { STAGE_LABEL, type WorkStage } from "@/types/works";
 
 export const runtime = "nodejs";
 
@@ -47,7 +49,26 @@ export async function POST(_: Request, { params }: Params) {
         stageCode: nextCode,
         progress: nextCode === "PUBLISHED" ? 100 : work.progress,
       },
-      include: { researcher: { select: { displayName: true } } },
+      include: {
+        researcher: { select: { displayName: true, userId: true } },
+      },
+    });
+
+    // ——— إشعارات: للباحث + للمنسقين ———
+    const stageLabel =
+      STAGE_LABEL[nextCode as WorkStage] ?? nextCode;
+    await notify({
+      userId: updated.researcher.userId,
+      kind: "STAGE_CHANGED",
+      title: `انتقل عملك "${updated.title}" إلى مرحلة جديدة`,
+      body: `المرحلة الحالية: ${stageLabel}`,
+      link: `/projects?work=${updated.id}`,
+    });
+    await notifyRole("RESEARCH_COORDINATOR", {
+      kind: "STAGE_CHANGED",
+      title: `تحديث مرحلة: ${updated.title}`,
+      body: `الباحث: ${updated.researcher.displayName} — المرحلة: ${stageLabel}`,
+      link: `/projects?work=${updated.id}`,
     });
 
     return NextResponse.json({ ok: true, work: serializeWork(updated) });

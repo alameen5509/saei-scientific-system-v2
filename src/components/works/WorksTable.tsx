@@ -45,6 +45,7 @@ interface Props {
   onAdvance: (w: ScientificWork) => void;
   onDelete: (w: ScientificWork) => void;
   onAssignReviewers?: (w: ScientificWork) => void;
+  onSubmissions?: (w: ScientificWork) => void;
   /** يُمرَّر إلى WorkActionsMenu لإخفاء الكتابة (للباحث) */
   readOnly?: boolean;
 }
@@ -101,6 +102,7 @@ export function WorksTable({
   onAdvance,
   onDelete,
   onAssignReviewers,
+  onSubmissions,
   readOnly = false,
 }: Props) {
   return (
@@ -196,6 +198,7 @@ export function WorksTable({
                     onAdvance={onAdvance}
                     onDelete={onDelete}
                     onAssignReviewers={onAssignReviewers}
+                    onSubmissions={onSubmissions}
                     readOnly={readOnly}
                   />
                 </TableCell>
@@ -235,6 +238,7 @@ export function WorksTable({
                   onAdvance={onAdvance}
                   onDelete={onDelete}
                   onAssignReviewers={onAssignReviewers}
+                  onSubmissions={onSubmissions}
                   readOnly={readOnly}
                 />
               </div>

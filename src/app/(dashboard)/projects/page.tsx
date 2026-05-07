@@ -46,6 +46,7 @@ import {
 } from "@/components/works/WorkDialog";
 import { WorksPageSkeleton } from "@/components/works/WorksSkeleton";
 import { AssignReviewersDialog } from "@/components/works/AssignReviewersDialog";
+import { SubmissionsDialog } from "@/components/works/SubmissionsDialog";
 import { useWorks } from "@/components/works/use-works";
 import {
   isOverdue,
@@ -92,6 +93,10 @@ export default function ProjectsPage() {
 
   // ————— تعيين محكمين —————
   const [assignTarget, setAssignTarget] = useState<ScientificWork | null>(null);
+
+  // ————— التسليمات —————
+  const [submissionsTarget, setSubmissionsTarget] =
+    useState<ScientificWork | null>(null);
 
   // ————— الفلترة + البحث —————
   const filtered = useMemo(() => {
@@ -425,6 +430,7 @@ export default function ProjectsPage() {
             onAssignReviewers={
               isResearcher ? undefined : (w) => setAssignTarget(w)
             }
+            onSubmissions={(w) => setSubmissionsTarget(w)}
             readOnly={isResearcher}
           />
 
@@ -479,6 +485,15 @@ export default function ProjectsPage() {
         open={!!assignTarget}
         work={assignTarget}
         onOpenChange={(v) => !v && setAssignTarget(null)}
+      />
+
+      {/* التسليمات */}
+      <SubmissionsDialog
+        open={!!submissionsTarget}
+        workId={submissionsTarget?.id ?? null}
+        workTitle={submissionsTarget?.title}
+        onOpenChange={(v) => !v && setSubmissionsTarget(null)}
+        onAfterSubmit={() => void refetch()}
       />
     </div>
   );

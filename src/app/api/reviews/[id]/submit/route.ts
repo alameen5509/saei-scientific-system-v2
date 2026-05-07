@@ -10,6 +10,7 @@ import {
   serializeReviewForReviewer,
   validateSubmitInput,
 } from "@/lib/reviews-service";
+import { notifyRole } from "@/lib/notify";
 
 export const runtime = "nodejs";
 
@@ -92,6 +93,14 @@ export async function POST(req: Request, { params }: Params) {
     await prisma.reviewer.update({
       where: { id: review.reviewerId },
       data: { totalCompleted: { increment: 1 } },
+    });
+
+    // إشعار للمنسقين بانتهاء المراجعة (الباحث لا يُخبَر مباشرة لحفظ مجهولية المحكم)
+    await notifyRole("RESEARCH_COORDINATOR", {
+      kind: "REVIEW_SUBMITTED",
+      title: `وردت مراجعة لعمل: ${updated.work.title}`,
+      body: `قرار المحكم: ${data.decision}`,
+      link: `/reviews/${updated.id}`,
     });
 
     return NextResponse.json({

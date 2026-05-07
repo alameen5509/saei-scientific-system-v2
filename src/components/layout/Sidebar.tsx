@@ -14,6 +14,7 @@ import {
   Shield,
   UserCheck,
   ClipboardList,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types";
@@ -66,6 +67,12 @@ const items: NavItem[] = [
       "JOURNAL_COORDINATOR",
       "REVIEWER",
     ],
+  },
+  {
+    href: "/contracts",
+    label: "العقود",
+    icon: FileSignature,
+    roles: ["ADMIN", "RESEARCH_COORDINATOR", "JOURNAL_COORDINATOR"],
   },
   {
     href: "/users",
