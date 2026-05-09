@@ -2,6 +2,37 @@
 import { prisma } from "@/lib/prisma";
 import { STAGE_LABEL, STAGE_ORDER, type WorkStage } from "@/types/works";
 
+export interface ReportsKpis {
+  totalWorks: number;
+  published: number;
+  inProgress: number;
+  activeResearchers: number;
+}
+
+export async function reportsKpis(): Promise<ReportsKpis> {
+  const [totalWorks, published, archived, activeResearchers] = await Promise.all([
+    prisma.scientificWork.count(),
+    prisma.scientificWork.count({ where: { stageCode: "PUBLISHED" } }),
+    prisma.scientificWork.count({ where: { stageCode: "ARCHIVED" } }),
+    // باحث "نشط" = له عمل ليس منشوراً ولا مؤرشفاً
+    prisma.researcher.count({
+      where: {
+        works: {
+          some: {
+            stageCode: { notIn: ["PUBLISHED", "ARCHIVED"] },
+          },
+        },
+      },
+    }),
+  ]);
+  return {
+    totalWorks,
+    published,
+    inProgress: totalWorks - published - archived,
+    activeResearchers,
+  };
+}
+
 export interface MonthlyProductivityRow {
   month: string;
   created: number;

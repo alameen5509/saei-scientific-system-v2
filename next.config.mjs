@@ -10,6 +10,15 @@ const nextConfig = {
       "/api/**": ["./src/generated/prisma/**/*"],
     },
   },
+
+  // — aliases لـURLs بديلة شائعة —
+  // /works و /announce اختصارات تتوقعها بعض الواجهات؛ الـcanonical هو /projects و /announcements
+  async redirects() {
+    return [
+      { source: "/works", destination: "/projects", permanent: false },
+      { source: "/works/:path*", destination: "/projects/:path*", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

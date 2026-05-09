@@ -1,4 +1,4 @@
-// التقارير — ٣ تقارير جاهزة + تصدير CSV
+// التقارير — KPIs + ٣ تقارير جاهزة + تصدير CSV
 import {
   Card,
   CardContent,
@@ -9,23 +9,66 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { TrendLineChart } from "@/components/charts/TrendLineChart";
 import { ProjectsBarChart } from "@/components/charts/ProjectsBarChart";
+import { StagePieChart } from "@/components/charts/StagePieChart";
 import { ExportCsvButton } from "@/components/ExportCsvButton";
-import { FileBarChart, TrendingUp, Layers, Users } from "lucide-react";
+import {
+  FileBarChart,
+  TrendingUp,
+  Layers,
+  Users,
+  FolderKanban,
+  CheckCircle2,
+  Clock,
+  UserCheck,
+} from "lucide-react";
 import {
   monthlyProductivity,
   stageAnalysis,
   researcherPerformance,
+  reportsKpis,
 } from "@/lib/reports-data";
 import { toArabicDigits } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
-  const [monthly, stages, perf] = await Promise.all([
+  const [kpis, monthly, stages, perf] = await Promise.all([
+    reportsKpis(),
     monthlyProductivity(12),
     stageAnalysis(),
     researcherPerformance(),
   ]);
+
+  const kpiCards = [
+    {
+      label: "إجمالي الأعمال",
+      value: kpis.totalWorks,
+      icon: FolderKanban,
+      bg: "bg-saei-purple/10",
+      color: "text-saei-purple-700",
+    },
+    {
+      label: "الأعمال المنشورة",
+      value: kpis.published,
+      icon: CheckCircle2,
+      bg: "bg-emerald-100",
+      color: "text-emerald-700",
+    },
+    {
+      label: "الأعمال الجارية",
+      value: kpis.inProgress,
+      icon: Clock,
+      bg: "bg-saei-teal/10",
+      color: "text-saei-teal",
+    },
+    {
+      label: "الباحثون النشطون",
+      value: kpis.activeResearchers,
+      icon: UserCheck,
+      bg: "bg-saei-gold/15",
+      color: "text-saei-gold-700",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -35,8 +78,32 @@ export default async function ReportsPage() {
           التقارير
         </h1>
         <p className="text-stone-600 text-sm">
-          ٣ تقارير جاهزة قابلة للتصدير CSV (مفتوحة في Excel/Sheets)
+          ملخّص KPIs و٣ تقارير جاهزة قابلة للتصدير CSV (مفتوحة في Excel/Sheets)
         </p>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpiCards.map((k) => {
+          const Icon = k.icon;
+          return (
+            <Card key={k.label}>
+              <CardHeader className="flex-row items-center gap-3 pb-2">
+                <div
+                  className={`h-11 w-11 rounded-xl grid place-items-center ${k.bg} ${k.color}`}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardDescription>{k.label}</CardDescription>
+                  <CardTitle className="text-2xl tabular-nums">
+                    {toArabicDigits(k.value)}
+                  </CardTitle>
+                </div>
+              </CardHeader>
+            </Card>
+          );
+        })}
       </div>
 
       {/* تقرير ١: الإنتاجية الشهرية */}
@@ -85,9 +152,26 @@ export default async function ReportsPage() {
           />
         </CardHeader>
         <CardContent className="space-y-4">
-          <ProjectsBarChart
-            data={stages.map((s) => ({ label: s.label, value: s.count }))}
-          />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <p className="text-xs font-bold text-stone-500 mb-2 text-center">
+                توزيع شريطي
+              </p>
+              <ProjectsBarChart
+                data={stages.map((s) => ({ label: s.label, value: s.count }))}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-stone-500 mb-2 text-center">
+                توزيع دائري
+              </p>
+              <StagePieChart
+                data={stages
+                  .filter((s) => s.count > 0)
+                  .map((s) => ({ label: s.label, value: s.count }))}
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
