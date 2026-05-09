@@ -1,5 +1,6 @@
 // خدمة إشعارات داخل التطبيق — تكتب صفوفاً في Notification
 // + ترسل بريداً عبر Resend عند توفّر RESEND_API_KEY
+// + تحترم تفضيلات المستخدم (NotificationPreference) لكل نوع
 import { prisma } from "@/lib/prisma";
 import type { NotificationKind } from "@/generated/prisma/enums";
 import { sendEmail, isEmailConfigured } from "@/lib/email";
@@ -21,6 +22,17 @@ interface CreateNotifyArgs {
   };
 }
 
+/** يجلب تفضيلات المستخدم لنوع معيّن — يعود إلى defaults (true/true) إن لم يكن هناك سجل */
+async function getPrefs(
+  userId: string,
+  kind: NotificationKind
+): Promise<{ inApp: boolean; email: boolean }> {
+  const p = await prisma.notificationPreference.findUnique({
+    where: { userId_kind: { userId, kind } },
+  });
+  return { inApp: p?.inApp ?? true, email: p?.email ?? true };
+}
+
 async function fireEmail(userId: string, email: NonNullable<CreateNotifyArgs["email"]>) {
   if (!isEmailConfigured()) return;
   const u = await prisma.user.findUnique({
@@ -38,20 +50,23 @@ async function fireEmail(userId: string, email: NonNullable<CreateNotifyArgs["em
   });
 }
 
-/** إنشاء إشعار واحد لمستخدم محدد + بريد اختياري */
+/** إنشاء إشعار واحد لمستخدم محدد + بريد اختياري — يحترم تفضيلات المستخدم */
 export async function notify(args: CreateNotifyArgs) {
-  const created = await prisma.notification.create({
-    data: {
-      userId: args.userId,
-      kind: args.kind,
-      title: args.title,
-      body: args.body ?? null,
-      link: args.link ?? null,
-      metadata: (args.metadata ?? null) as never,
-    },
-  });
-  if (args.email) {
-    // غير منتظر — لا نريد عرقلة الـHTTP response لو Resend بطيء
+  const prefs = await getPrefs(args.userId, args.kind);
+  let created = null;
+  if (prefs.inApp) {
+    created = await prisma.notification.create({
+      data: {
+        userId: args.userId,
+        kind: args.kind,
+        title: args.title,
+        body: args.body ?? null,
+        link: args.link ?? null,
+        metadata: (args.metadata ?? null) as never,
+      },
+    });
+  }
+  if (args.email && prefs.email) {
     void fireEmail(args.userId, args.email);
   }
   return created;

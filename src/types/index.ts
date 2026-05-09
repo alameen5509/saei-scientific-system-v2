@@ -1,11 +1,12 @@
 // أنواع مشتركة لنظام إدارة الأعمال العلمية
 import type { LucideIcon } from "lucide-react";
 
-// خمسة أدوار في نظام ساعي
+// ستة أدوار في نظام ساعي (PRINTING_MANAGER أُضيف في Phase C)
 export type UserRole =
   | "ADMIN" // مدير النظام
   | "RESEARCH_COORDINATOR" // منسق الأبحاث
   | "JOURNAL_COORDINATOR" // منسق المجلة
+  | "PRINTING_MANAGER" // مدير الطباعة
   | "RESEARCHER" // باحث
   | "REVIEWER"; // محكم
 

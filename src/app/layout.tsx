@@ -4,6 +4,7 @@ import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ImpersonationProvider } from "@/components/providers/ImpersonationContext";
 import { ToastProvider } from "@/components/ui/toast";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { BrandingProvider } from "@/components/BrandingProvider";
 import "./globals.css";
 
 // خط Cairo للواجهة العامة
@@ -51,10 +52,12 @@ export default function RootLayout({
       <body className="min-h-screen bg-saei-cream text-saei-ink antialiased">
         <SessionProvider>
           <ImpersonationProvider>
-            <ToastProvider>
-              <ImpersonationBanner />
-              {children}
-            </ToastProvider>
+            <BrandingProvider>
+              <ToastProvider>
+                <ImpersonationBanner />
+                {children}
+              </ToastProvider>
+            </BrandingProvider>
           </ImpersonationProvider>
         </SessionProvider>
       </body>

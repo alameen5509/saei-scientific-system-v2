@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/toast";
 import { ROLE_LABEL, ROLE_TONE } from "@/lib/rbac";
 import { formatDate } from "@/lib/utils";
 import type { UserRole } from "@/types";
+import { NotificationPreferencesCard } from "@/components/profile/NotificationPreferencesCard";
 
 interface Profile {
   id: string;
@@ -318,6 +319,9 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* تفضيلات الإشعارات */}
+      <NotificationPreferencesCard />
 
       {/* كلمة المرور */}
       <Card>

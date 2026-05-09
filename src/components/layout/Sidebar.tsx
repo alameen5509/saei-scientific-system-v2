@@ -15,6 +15,11 @@ import {
   UserCheck,
   ClipboardList,
   FileSignature,
+  Activity,
+  Megaphone,
+  ScanSearch,
+  Printer,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types";
@@ -25,6 +30,12 @@ const items: NavItem[] = [
     label: "لوحة التحكم",
     icon: LayoutDashboard,
     // متاح لكل المسجَّلين
+  },
+  {
+    href: "/executive",
+    label: "اللوحة التنفيذية",
+    icon: Activity,
+    roles: ["ADMIN", "RESEARCH_COORDINATOR"],
   },
   {
     href: "/projects",
@@ -75,9 +86,39 @@ const items: NavItem[] = [
     roles: ["ADMIN", "RESEARCH_COORDINATOR", "JOURNAL_COORDINATOR"],
   },
   {
+    href: "/announcements",
+    label: "الإعلانات",
+    icon: Megaphone,
+    roles: ["ADMIN", "RESEARCH_COORDINATOR"],
+  },
+  {
+    href: "/screening",
+    label: "فرز المتقدمين",
+    icon: ScanSearch,
+    roles: ["ADMIN", "RESEARCH_COORDINATOR"],
+  },
+  {
+    href: "/publishing",
+    label: "الطباعة والنشر",
+    icon: Printer,
+    roles: ["ADMIN", "RESEARCH_COORDINATOR", "PRINTING_MANAGER"],
+  },
+  {
     href: "/users",
     label: "إدارة المستخدمين",
     icon: Shield,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/audit",
+    label: "سجل التدقيق",
+    icon: Activity,
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/settings",
+    label: "إعدادات النظام",
+    icon: SettingsIcon,
     roles: ["ADMIN"],
   },
 ];

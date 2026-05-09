@@ -36,6 +36,7 @@ enum UserRole {
   ADMIN                  // مدير النظام
   RESEARCH_COORDINATOR   // منسق الأبحاث
   JOURNAL_COORDINATOR    // منسق المجلة
+  PRINTING_MANAGER       // مدير الطباعة (أُضيف في Phase C)
   RESEARCHER             // باحث
   REVIEWER               // محكم
 }
@@ -231,6 +232,23 @@ model AuditLog {
 enum AuditAction {
   IMPERSONATE_START
   IMPERSONATE_END
+  // Phase C — تتبع نشاط أوسع
+  ANNOUNCEMENT_CREATE
+  ANNOUNCEMENT_UPDATE
+  ANNOUNCEMENT_ARCHIVE
+  APPLICANT_CLASSIFY
+  PUBLISHER_CREATE
+  PUBLISHER_UPDATE
+  PRINTING_STAGE_ADVANCE
+  SETTINGS_UPDATE
+  REPORT_EXPORT
+  // Phase D
+  ESCALATION_TRIGGERED
+  BRAND_UPDATE
+  SMS_SENT
+  CUSTOM_REPORT_CREATE
+  CUSTOM_REPORT_UPDATE
+  CUSTOM_REPORT_DELETE
 }
 
 // ============================================================
@@ -298,6 +316,12 @@ enum NotificationKind {
   DEADLINE_OVERDUE
   CONTRACT_SIGNED
   CONTRACT_SENT
+  // Phase C — أنواع جديدة
+  ANNOUNCEMENT_PUBLISHED
+  APPLICANT_ACCEPTED
+  APPLICANT_REJECTED
+  PRINTING_STAGE_CHANGED
+  REPORT_READY
   GENERIC
 }
 
@@ -347,3 +371,284 @@ enum ContractStatus {
   EXPIRED
   CANCELLED
 }
+
+// ============================================================
+// Phase C — إعلانات الأولويات البحثية (Research Priorities)
+// ============================================================
+
+model Announcement {
+  id              String             @id @default(cuid())
+  tenantId        String             @default("saei")
+  title           String
+  body            String             @db.Text
+  requirements    String?            @db.Text   // متطلبات التقديم
+  specialty       String?            // التخصص المستهدف
+  targetCount     Int                @default(1) // عدد الأعمال المستهدفة
+  status          AnnouncementStatus @default(DRAFT)
+  publishedAt     DateTime?
+  applyDeadline   DateTime?
+  createdById     String
+  archivedAt      DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  applicants      Applicant[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([applyDeadline])
+}
+
+enum AnnouncementStatus {
+  DRAFT       // مسودّة
+  PUBLISHED   // منشور
+  CLOSED      // أُغلق التقديم
+  ARCHIVED    // مؤرشف
+}
+
+// ============================================================
+// Phase C — متقدّمون لإعلان (يحوي بيانات السيرة الذاتية ومرفقات)
+// ============================================================
+
+model Applicant {
+  id              String                @id @default(cuid())
+  tenantId        String                @default("saei")
+  announcementId  String
+  fullName        String
+  email           String?
+  phone           String?
+  cvText          String?               @db.Text   // ملخّص السيرة (نصيّاً)
+  cvStoragePath   String?               // مسار السيرة في Supabase Storage (PDF)
+  qualifications  String?               @db.Text
+  publicationsCount Int                 @default(0)
+  yearsExperience   Int                 @default(0)
+  // التقييم
+  classification  ApplicantClassification @default(PENDING)
+  scoreExpertise  Int?                  // 0-100
+  scorePublications Int?                // 0-100
+  scoreFit        Int?                  // 0-100
+  scoreTotal      Int?                  // محسوب على السيرفر (مرجَّح)
+  evaluatedById   String?               // userId
+  evaluatedAt     DateTime?
+  notes           String?               @db.Text
+  // مراسلات
+  notificationSentAt DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([announcementId])
+  @@index([classification])
+}
+
+enum ApplicantClassification {
+  PENDING              // لم يُصنَّف بعد
+  SUITABLE             // مناسب
+  PARTIALLY_SUITABLE   // مناسب جزئياً
+  UNSUITABLE           // غير مناسب
+}
+
+// ============================================================
+// Phase C — الناشرون / مكاتب الطباعة
+// ============================================================
+
+model Publisher {
+  id          String       @id @default(cuid())
+  tenantId    String       @default("saei")
+  name        String
+  city        String?
+  country     String?      @default("SA")
+  contactName String?
+  contactPhone String?
+  contactEmail String?
+  // أداء
+  rating      Int?         // 1-5 (يُحدّث يدوياً)
+  totalJobs   Int          @default(0)
+  notes       String?      @db.Text
+  active      Boolean      @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  printingJobs PrintingJob[]
+
+  @@index([tenantId])
+  @@index([active])
+}
+
+// ============================================================
+// Phase C — أوامر الطباعة (مرحلة 11-12 من سير العمل)
+// — كل عمل قد يكون له PrintingJob واحد عندما يصل لمرحلة الإنتاج
+// ============================================================
+
+model PrintingJob {
+  id          String              @id @default(cuid())
+  tenantId    String              @default("saei")
+  workId      String              @unique
+  publisherId String
+  stage       PrintingStage       @default(FILE_RECEIVED)
+  copies      Int                 @default(0)
+  cost        Decimal?            @db.Decimal(12, 2)
+  currency    String              @default("SAR")
+  receivedAt  DateTime?
+  designReviewAt DateTime?
+  printingAt  DateTime?
+  deliveredAt DateTime?
+  expectedDeliveryAt DateTime?
+  notes       String?             @db.Text
+  deletedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  publisher   Publisher           @relation(fields: [publisherId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([publisherId])
+  @@index([stage])
+  @@index([expectedDeliveryAt])
+}
+
+enum PrintingStage {
+  FILE_RECEIVED      // استلام الملف
+  DESIGN_REVIEW      // مراجعة التصميم
+  PRINTING           // قيد الطباعة
+  FINAL_DELIVERY     // تسليم نهائي
+}
+
+// ============================================================
+// Phase C — تفضيلات إشعارات المستخدم (per-user, per-kind toggles)
+// ============================================================
+
+model NotificationPreference {
+  id        String           @id @default(cuid())
+  tenantId  String           @default("saei")
+  userId    String
+  kind      NotificationKind
+  inApp     Boolean          @default(true)
+  email     Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([userId, kind])
+  @@index([tenantId])
+  @@index([userId])
+}
+
+// ============================================================
+// Phase C — إعدادات النظام العامة (key/value JSON)
+// ============================================================
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("saei")
+  key         String   @unique
+  value       Json     // قيمة مرنة (string/number/object)
+  description String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// ============================================================
+// Phase D — Escalation Rules (تصاعد الإشعارات الزمني)
+// ============================================================
+
+model EscalationRule {
+  id          String           @id @default(cuid())
+  tenantId    String           @default("saei")
+  name        String
+  kind        NotificationKind // النوع المُتصاعد له
+  // متى ينطلق التصاعد: بعد كم ساعة من إنشاء الإشعار غير المقروء
+  triggerAfterHours Int        @default(24)
+  // مستوى التصاعد (1, 2, 3) — يحدد لمن يصل
+  level       Int              @default(1)
+  // أدوار المستلمين الجدد عند التصاعد
+  escalateToRoles String[]     @default([])
+  // قنوات التصاعد
+  emailEnabled  Boolean        @default(true)
+  smsEnabled    Boolean        @default(false)
+  active        Boolean        @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([kind])
+  @@index([active])
+}
+
+// ============================================================
+// Phase D — سجل رسائل SMS (Twilio fallback to email)
+// ============================================================
+
+model SmsLog {
+  id          String         @id @default(cuid())
+  tenantId    String         @default("saei")
+  toNumber    String
+  body        String         @db.Text
+  status      SmsStatus      @default(QUEUED)
+  provider    String?        // "twilio", "fallback-email", etc.
+  providerId  String?        // SID من Twilio
+  errorMessage String?
+  cost        Decimal?       @db.Decimal(10, 4) // بالدولار
+  sentAt      DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum SmsStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+// ============================================================
+// Phase D — تقارير مخصصة محفوظة (بدون drag-drop builder، فقط CRUD لقوالب)
+// ============================================================
+
+model CustomReport {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("saei")
+  name        String
+  description String?
+  // تعريف التقرير: { entity: "ScientificWork", filters: [...], groupBy: ..., aggregations: ... }
+  definition  Json
+  createdById String
+  isShared    Boolean  @default(false)
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([createdById])
+}
+
+// ============================================================
+// Phase D — إعدادات هوية بصرية (CSS variables runtime override)
+// — صف واحد فقط في النظام (singleton-via-key)
+// ============================================================
+
+model BrandSetting {
+  id            String   @id @default(cuid())
+  tenantId      String   @unique @default("saei")
+  primaryColor  String   @default("#5E5495") // saei-purple
+  secondaryColor String  @default("#00D4DD") // saei-teal
+  accentColor   String   @default("#C9A84C") // saei-gold
+  logoUrl       String?
+  fontFamily    String   @default("Cairo")
+  updatedById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+

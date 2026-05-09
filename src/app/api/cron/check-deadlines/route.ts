@@ -145,11 +145,114 @@ export async function GET(req: NextRequest) {
     notified++;
   }
 
+  // ——— Phase D: تطبيق قواعد التصاعد ———
+  const escalations = await applyEscalationRules(now);
+
   return NextResponse.json({
     ok: true,
     overdue: overdue.length,
     approaching: approaching.length,
     notified,
+    escalations,
     runAt: now.toISOString(),
   });
+}
+
+// ============================================================
+// تطبيق قواعد التصاعد على الإشعارات غير المقروءة
+// — لكل قاعدة نشطة: ابحث عن إشعارات من نفس النوع لم تُقرأ منذ triggerAfterHours
+// — للمستلمين الأصليين، أعد إرسال الإشعار للأدوار المُحدَّدة في القاعدة
+// ============================================================
+async function applyEscalationRules(now: Date): Promise<{
+  rulesApplied: number;
+  notificationsEscalated: number;
+}> {
+  const rules = await prisma.escalationRule.findMany({
+    where: { active: true },
+  });
+  let notificationsEscalated = 0;
+
+  for (const rule of rules) {
+    const cutoff = new Date(
+      now.getTime() - rule.triggerAfterHours * 3600_000
+    );
+    // إشعارات من النوع نفسه، غير مقروءة، وأقدم من cutoff
+    const stale = await prisma.notification.findMany({
+      where: {
+        kind: rule.kind,
+        readAt: null,
+        createdAt: { lt: cutoff },
+        // metadata لا يحوي escalatedAt بعد
+      },
+      take: 100,
+    });
+    if (stale.length === 0) continue;
+
+    // مَن نُخطر: المستخدمون بالأدوار الموجودة في القاعدة
+    if (rule.escalateToRoles.length === 0) continue;
+    const recipients = await prisma.user.findMany({
+      where: { role: { in: rule.escalateToRoles as never } },
+      select: { id: true, email: true },
+    });
+    if (recipients.length === 0) continue;
+
+    for (const n of stale) {
+      // dedup: نتجنّب التصاعد إن كان metadata يحوي escalatedLevel >= rule.level
+      const meta = (n.metadata ?? {}) as Record<string, unknown>;
+      const prevLevel = (meta.escalatedLevel as number | undefined) ?? 0;
+      if (prevLevel >= rule.level) continue;
+
+      // أنشئ إشعار تصاعد لكل مستلم
+      for (const u of recipients) {
+        await prisma.notification.create({
+          data: {
+            userId: u.id,
+            kind: rule.kind,
+            title: `[تصاعد L${rule.level}] ${n.title}`,
+            body: `لم يُقرأ هذا الإشعار منذ ${rule.triggerAfterHours} ساعة. ${n.body ?? ""}`,
+            link: n.link ?? null,
+            metadata: {
+              escalatedFrom: n.id,
+              escalatedLevel: rule.level,
+              ruleId: rule.id,
+            },
+          },
+        });
+      }
+
+      // تحديث الإشعار الأصلي بالـlevel للوقاية من التصاعد المتكرّر
+      await prisma.notification.update({
+        where: { id: n.id },
+        data: {
+          metadata: {
+            ...meta,
+            escalatedLevel: rule.level,
+            escalatedAt: now.toISOString(),
+          },
+        },
+      });
+
+      // AuditLog
+      await prisma.auditLog.create({
+        data: {
+          action: "ESCALATION_TRIGGERED",
+          actorId: "system",
+          metadata: {
+            notificationId: n.id,
+            ruleId: rule.id,
+            level: rule.level,
+            kind: rule.kind,
+            recipientCount: recipients.length,
+          },
+        },
+      });
+
+      notificationsEscalated++;
+    }
+  }
+
+  return {
+    rulesApplied: rules.length,
+    notificationsEscalated,
+  };
 }

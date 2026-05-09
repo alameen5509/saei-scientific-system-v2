@@ -9,6 +9,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   ADMIN: "مدير النظام",
   RESEARCH_COORDINATOR: "منسق الأبحاث",
   JOURNAL_COORDINATOR: "منسق المجلة",
+  PRINTING_MANAGER: "مدير الطباعة",
   RESEARCHER: "باحث",
   REVIEWER: "محكم",
 };
@@ -17,6 +18,7 @@ export const ALL_ROLES: UserRole[] = [
   "ADMIN",
   "RESEARCH_COORDINATOR",
   "JOURNAL_COORDINATOR",
+  "PRINTING_MANAGER",
   "RESEARCHER",
   "REVIEWER",
 ];
@@ -28,6 +30,7 @@ export const ROLE_TONE: Record<UserRole, RoleTone> = {
   ADMIN: "purple",
   RESEARCH_COORDINATOR: "teal",
   JOURNAL_COORDINATOR: "gold",
+  PRINTING_MANAGER: "amber",
   RESEARCHER: "amber",
   REVIEWER: "green",
 };
@@ -93,6 +96,18 @@ export const PATH_ROLE_MAP: Array<{ prefix: string; roles: UserRole[] }> = [
     prefix: "/reviews",
     roles: [...WORKS_MANAGERS, "REVIEWER"],
   },
+  // Phase C
+  { prefix: "/executive", roles: ["ADMIN", "RESEARCH_COORDINATOR"] },
+  { prefix: "/announcements", roles: ["ADMIN", "RESEARCH_COORDINATOR"] },
+  { prefix: "/screening", roles: ["ADMIN", "RESEARCH_COORDINATOR"] },
+  // /publishing — مدير الطباعة + المنسقون + المدير
+  {
+    prefix: "/publishing",
+    roles: ["ADMIN", "RESEARCH_COORDINATOR", "PRINTING_MANAGER"],
+  },
+  { prefix: "/settings", roles: ["ADMIN"] },
+  // Phase D
+  { prefix: "/audit", roles: ["ADMIN"] },
   // /dashboard و /profile متاحان لكل مسجَّل
 ];
 

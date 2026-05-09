@@ -67,8 +67,13 @@ export const config = {
     "/profile/:path*",
     "/reviewers/:path*",
     "/reviews/:path*",
-    // إضافة الصفحات الجديدة للمصفوفة (12-stage features)
     "/contracts/:path*",
+    // Phase C
+    "/executive/:path*",
+    "/announcements/:path*",
+    "/screening/:path*",
+    "/publishing/:path*",
+    "/settings/:path*",
     // كل API ما عدا /api/auth و /api/cron (يحتاج Bearer CRON_SECRET بدلاً من token)
     "/api/admin/:path*",
     "/api/users/:path*",
@@ -78,5 +83,18 @@ export const config = {
     "/api/profile/:path*",
     "/api/contracts/:path*",
     "/api/notifications/:path*",
+    // Phase C
+    "/api/announcements/:path*",
+    "/api/applicants/:path*",
+    "/api/publishers/:path*",
+    "/api/printing-jobs/:path*",
+    "/api/notification-preferences/:path*",
+    "/api/system-settings/:path*",
+    // Phase D
+    "/audit/:path*",
+    "/api/audit/:path*",
+    "/api/branding/:path*",
+    "/api/escalation-rules/:path*",
+    "/api/sms-logs/:path*",
   ],
 };
