@@ -103,9 +103,9 @@ saei-scientific-system/
 - `PrismaClient` يحتاج `adapter` صريح: `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })`
 - العميل يُولَّد إلى `src/generated/prisma` (مسار مخصص)، يُستورد منه لا من `@prisma/client` مباشرة
 
-## بيانات دخول مؤقتة (placeholder)
-حتى يتم ربط قاعدة البيانات، يمكن الدخول بـ:
-- البريد: `admin@saei.local`
-- كلمة المرور: `saei-temp-password`
-
-**هام:** هذه placeholder فقط في `src/lib/auth.ts` — يجب استبدالها بتحقق فعلي من DB قبل الإنتاج.
+## بذر الحسابات
+- المصادقة الفعلية عبر Prisma + bcrypt (في `src/lib/auth.ts`).
+- لا توجد كلمات مرور hardcoded في الكود.
+- لإعادة بذر بيانات التطوير: `SEED_DEFAULT_PASSWORD='...' npm run db:seed`
+- لإعادة تعيين كلمة admin: `SEED_ADMIN_PASSWORD='...' npx tsx prisma/seed-admin.ts`
+- إن لم تُمرَّر كلمة، يُولَّد عشوائياً ويُطبع مرة واحدة في الـoutput.

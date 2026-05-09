@@ -10,6 +10,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { SAMPLE_WORKS } from "../src/lib/works-data";
 import { STAGE_LABEL, STAGE_ORDER } from "../src/types/works";
+import { generateStrongPassword } from "../src/lib/password-gen";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL ?? "",
@@ -29,8 +30,11 @@ const SLUG_BY_NAME: Record<string, string> = {
   "محمد العتيبي": "mohammed.otaibi",
 };
 
-// كلمات سرّ افتراضية للحسابات التجريبية
-const DEFAULT_PASSWORD = "Saei@2026";
+// كلمة سرّ التجريبية:
+// — تُقرأ من SEED_DEFAULT_PASSWORD، أو تُولَّد عشوائياً وتُطبع مرة واحدة
+// — لا قيمة hardcoded في الكود
+const SEED_PASSWORD = process.env.SEED_DEFAULT_PASSWORD ?? generateStrongPassword(20);
+const SEED_PASSWORD_GENERATED = !process.env.SEED_DEFAULT_PASSWORD;
 
 async function hash(pw: string): Promise<string> {
   return bcrypt.hash(pw, 10);
@@ -60,7 +64,7 @@ async function main() {
 
   // ————— مستخدمون تجريبيون لكل دور —————
   console.log("👥 إنشاء حسابات الأدوار الإدارية...");
-  const adminPw = await hash(DEFAULT_PASSWORD);
+  const adminPw = await hash(SEED_PASSWORD);
 
   await prisma.user.create({
     data: {
@@ -244,7 +248,20 @@ async function main() {
       researcherIdByBase.size
     } باحثين، ${SAMPLE_WORKS.length} عملاً، ${reviewersData.length} محكمين.`
   );
-  console.log(`\n🔑 بيانات الدخول التجريبية (كلمة السرّ: ${DEFAULT_PASSWORD}):`);
+  console.log("\n" + "═".repeat(60));
+  console.log("🔑 بيانات الدخول التجريبية:");
+  console.log("═".repeat(60));
+  if (SEED_PASSWORD_GENERATED) {
+    console.log("\n   كلمة السرّ المولَّدة (تظهر مرة واحدة فقط):");
+    console.log("\n   " + SEED_PASSWORD + "\n");
+    console.log("   ⚠️  احفظها فوراً — لا تُطبع مجدداً.");
+    console.log(
+      "   لإعادة استخدام نفس الكلمة لاحقاً: SEED_DEFAULT_PASSWORD=... npm run db:seed"
+    );
+  } else {
+    console.log("\n   استُخدمت SEED_DEFAULT_PASSWORD من البيئة.");
+  }
+  console.log("\n   الحسابات:");
   console.log("   - admin@saei.local            (مدير النظام)");
   console.log("   - research.coord@saei.local   (منسق الأبحاث)");
   console.log("   - journal.coord@saei.local    (منسق المجلة)");
@@ -252,6 +269,7 @@ async function main() {
   console.log("   - reviewer.hadith@saei.local  (محكم — حديث/تراجم)");
   console.log("   - reviewer.usul@saei.local    (محكم — أصول/فقه)");
   console.log("   - reviewer.tafsir@saei.local  (محكم — تفسير/عقيدة/عربية)");
+  console.log("═".repeat(60) + "\n");
 }
 
 main()

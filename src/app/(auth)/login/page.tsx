@@ -134,73 +134,50 @@ function LoginForm() {
           </Button>
         </form>
 
-        {/* لوحة بيانات الاختبار — تظهر بنقرة فقط لتجنّب فوضى الواجهة */}
-        <div className="mt-6 pt-4 border-t border-saei-purple-100">
-          <button
-            type="button"
-            onClick={() => setShowHelp((v) => !v)}
-            className="text-xs text-saei-purple-700 hover:text-saei-purple flex items-center gap-1.5 font-bold"
-          >
-            <Info className="h-3.5 w-3.5" />
-            بيانات اختبار النظام (بيئة التطوير)
-          </button>
+        {/* لوحة بيانات الاختبار — لا تظهر إطلاقاً في production
+            — في dev: تعرض إيميلات الحسابات التجريبية فقط بلا كلمات مرور */}
+        {process.env.NODE_ENV !== "production" && (
+          <div className="mt-6 pt-4 border-t border-saei-purple-100">
+            <button
+              type="button"
+              onClick={() => setShowHelp((v) => !v)}
+              className="text-xs text-saei-purple-700 hover:text-saei-purple flex items-center gap-1.5 font-bold"
+            >
+              <Info className="h-3.5 w-3.5" />
+              حسابات الاختبار (dev فقط)
+            </button>
 
-          {showHelp && (
-            <div className="mt-3 p-3 rounded-xl bg-saei-purple-50/60 border border-saei-purple-100 space-y-3 text-xs">
-              <div>
-                <p className="text-saei-purple-700 font-bold mb-1">
-                  حساب المدير الجاهز:
+            {showHelp && (
+              <div className="mt-3 p-3 rounded-xl bg-saei-purple-50/60 border border-saei-purple-100 space-y-2 text-xs">
+                <p className="text-stone-700">
+                  كلمة السرّ:{" "}
+                  <span className="ltr inline-block font-mono bg-white px-2 py-0.5 rounded text-stone-500">
+                    ********
+                  </span>{" "}
+                  — تواصل مع المسؤول للحصول عليها.
                 </p>
-                <ul className="space-y-1 text-stone-700">
+                <ul className="space-y-1 text-stone-600">
                   <li>
-                    <span className="ltr font-mono">admin@saie.app</span> /{" "}
-                    <span className="ltr font-mono">Saie@2026</span> — مدير
-                    النظام
+                    <span className="ltr font-mono">research.coord@saei.local</span> — منسق الأبحاث
+                  </li>
+                  <li>
+                    <span className="ltr font-mono">journal.coord@saei.local</span> — منسق المجلة
+                  </li>
+                  <li>
+                    <span className="ltr font-mono">abdullah.salem@saei.local</span> — باحث
+                  </li>
+                  <li>
+                    <span className="ltr font-mono">reviewer.hadith@saei.local</span> — محكم
                   </li>
                 </ul>
-              </div>
-              <div className="pt-2 border-t border-saei-purple-100">
-                <p className="text-saei-purple-700 font-bold mb-1">
-                  حسابات تجريبية إضافية (كلمة السرّ:{" "}
-                  <span className="ltr inline-block font-mono bg-white px-1 rounded">
-                    Saei@2026
-                  </span>
-                  ):
+                <p className="text-[10px] text-stone-400 pt-1 border-t border-saei-purple-100">
+                  لإعادة بذر بياناتك:{" "}
+                  <span className="ltr font-mono">SEED_DEFAULT_PASSWORD=... npm run db:seed</span>
                 </p>
-                <ul className="space-y-1 text-stone-700">
-                  <li>
-                    <span className="ltr font-mono">admin@saei.local</span> —
-                    مدير ثانوي
-                  </li>
-                  <li>
-                    <span className="ltr font-mono">
-                      research.coord@saei.local
-                    </span>{" "}
-                    — منسق الأبحاث
-                  </li>
-                  <li>
-                    <span className="ltr font-mono">
-                      journal.coord@saei.local
-                    </span>{" "}
-                    — منسق المجلة
-                  </li>
-                  <li>
-                    <span className="ltr font-mono">
-                      abdullah.salem@saei.local
-                    </span>{" "}
-                    — باحث
-                  </li>
-                  <li>
-                    <span className="ltr font-mono">
-                      reviewer.hadith@saei.local
-                    </span>{" "}
-                    — محكم
-                  </li>
-                </ul>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

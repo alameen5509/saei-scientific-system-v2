@@ -5,7 +5,8 @@ import "dotenv/config";
 const BASE = "https://saei-scientific-system-marsa1.vercel.app";
 
 async function tryLogin(email: string, password: string) {
-  console.log(`\n--- جرّب: ${email} / ${password} ---`);
+  // لا نطبع كلمة المرور — فقط طولها للتشخيص
+  console.log(`\n--- جرّب: ${email} (pw len=${password.length}) ---`);
   // 1) CSRF token
   const csrfRes = await fetch(`${BASE}/api/auth/csrf`);
   const setCookie1 = csrfRes.headers.get("set-cookie") ?? "";
@@ -47,9 +48,22 @@ async function tryLogin(email: string, password: string) {
   return r.status;
 }
 
+// — تعليمات الاستخدام —
+// ADMIN_EMAIL=admin@saie.app ADMIN_PASSWORD='...' npx tsx scripts/test-login-production.ts
+// أو مرّر args:
+// npx tsx scripts/test-login-production.ts admin@saie.app '...'
+
 (async () => {
-  await tryLogin("admin@saie.app", "Saie@2026");
-  await tryLogin("admin@saei.local", "saei-temp-password");
+  const email =
+    process.argv[2] ?? process.env.ADMIN_EMAIL ?? "admin@saie.app";
+  const password = process.argv[3] ?? process.env.ADMIN_PASSWORD;
+  if (!password) {
+    console.error(
+      "❌ كلمة المرور مطلوبة. استخدم ADMIN_PASSWORD=... أو مرّرها كـargument."
+    );
+    process.exit(1);
+  }
+  await tryLogin(email, password);
 })().catch((e) => {
   console.error(e);
   process.exit(1);
