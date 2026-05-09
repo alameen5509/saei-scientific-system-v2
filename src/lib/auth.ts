@@ -33,10 +33,15 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
 
         const email = credentials.email.toLowerCase().trim();
+        // trim كلمة المرور للـlogin فقط (دفاع في العمق)
+        // — في حالة لصق/autofill يضيف مسافة عرضية
+        // — لا ينطبق على seed/register (يجب أن يرفضا المسافات صراحة)
+        const password = credentials.password.trim();
+
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user || !user.password) return null;
 
-        const valid = await bcrypt.compare(credentials.password, user.password);
+        const valid = await bcrypt.compare(password, user.password);
         if (!valid) return null;
 
         return {

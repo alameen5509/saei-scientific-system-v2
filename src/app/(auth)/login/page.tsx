@@ -61,9 +61,11 @@ function LoginForm() {
     setError(null);
     setSubmitting(true);
 
+    // trim مسافات الالتباس من اللصق/الإكمال التلقائي
+    // — للـlogin فقط، تخزين الكلمة (seed/register) يجب أن يرفض المسافات
     const res = await signIn("credentials", {
-      email,
-      password,
+      email: email.trim(),
+      password: password.trim(),
       redirect: false,
     });
     setSubmitting(false);

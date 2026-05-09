@@ -6,7 +6,9 @@ import { randomBytes, randomInt } from "node:crypto";
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // بدون I, O لتجنب الالتباس
 const LOWER = "abcdefghijkmnpqrstuvwxyz"; // بدون l, o
 const DIGIT = "23456789"; // بدون 0, 1
-const SYMBOL = "!@#$%^&*-_+=";
+// رموز آمنة فقط — لا & ^ ` " ' \ / < > | ? ; : ( ) [ ] { }
+// هذه قد تفسد على Windows cmd، PowerShell، URL encoding، أو terminal escapes
+const SYMBOL = "!@#$%*-_+=";
 
 function pick(set: string): string {
   return set[randomInt(0, set.length)];
