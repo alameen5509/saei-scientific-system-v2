@@ -89,13 +89,48 @@ git push -u origin main
 ### ج. ضبط Environment Variables
 في صفحة الاستيراد، أضف هذه المتغيّرات (تأكَّد من إضافتها لـ**كل البيئات**: Production + Preview + Development):
 
+#### إلزامية (الأساس)
 | المتغيّر | القيمة |
 |---------|------|
-| `DATABASE_URL` | URL DB من الجزء ٢ |
+| `DATABASE_URL` | URL DB من الجزء ٢ (على Vercel: Transaction Pooler، port 6543) |
 | `NEXTAUTH_SECRET` | شغّل `openssl rand -base64 32` وانسخ الناتج |
 | `NEXTAUTH_URL` | `https://saei-scientific-system.vercel.app` (يُحدَّث لاحقاً عند ربط دومين) |
 
+#### Supabase Storage — رفع/تنزيل ملفات التسليمات
+| المتغيّر | القيمة |
+|---------|------|
+| `SUPABASE_URL` | `https://<PROJECT_ID>.supabase.co` (نفس مشروع DATABASE_URL) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard → Project Settings → API → service_role (server-only، يتجاوز RLS) |
+| `SUPABASE_BUCKET_NAME` | `saei-uploads` (يُنشأ تلقائياً عند أول رفع — private + 50MB max، يقبل PDF/DOC/DOCX) |
+
+#### Resend — إرسال البريد
+| المتغيّر | القيمة |
+|---------|------|
+| `RESEND_API_KEY` | من [resend.com](https://resend.com) → API Keys (يبدأ بـ`re_`) |
+| `RESEND_FROM_EMAIL` | `noreply@resend.dev` للاختبار، أو `noreply@<your-domain>` بعد توثيق الدومين في Resend |
+
+#### Vercel Cron — تذكير المواعيد اليومي
+| المتغيّر | القيمة |
+|---------|------|
+| `CRON_SECRET` | قيمة عشوائية قوية — Vercel يحقنها في `Authorization: Bearer ...` للـcron الذي يعمل يومياً 6:00 UTC |
+
 > ⚠️ لا تستخدم نفس `NEXTAUTH_SECRET` المحلي — ولِّد قيمة جديدة للإنتاج.
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` يتجاوز كل قواعد RLS — لا تضعه في أي ملف client-side ولا تنشره على GitHub.
+
+#### نسخ المتغيّرات عبر Vercel CLI (بديل أسرع للوحة الويب)
+```bash
+# من جذر المشروع (بعد vercel link)
+vercel env add DATABASE_URL production
+vercel env add NEXTAUTH_SECRET production
+vercel env add NEXTAUTH_URL production
+vercel env add SUPABASE_URL production
+vercel env add SUPABASE_SERVICE_ROLE_KEY production
+vercel env add SUPABASE_BUCKET_NAME production
+vercel env add RESEND_API_KEY production
+vercel env add RESEND_FROM_EMAIL production
+vercel env add CRON_SECRET production
+# كرّر للـpreview أيضاً إن أردت اختبار التسليمات على فروع أخرى
+```
 
 ### د. النشر الأول
 - اضغط **Deploy**
@@ -117,6 +152,41 @@ npm run db:seed
 ```
 
 > 💡 للإطلاقات اللاحقة، استخدم `prisma migrate deploy` بدل `db:push`.
+
+---
+
+## ٣ـ. التحقّق من Phase B (Storage + Email + Cron)
+
+بعد النشر الأول، تحقّق أن الميزات الجديدة تعمل في الإنتاج:
+
+### أ. Supabase Storage
+1. ادخل النظام كـADMIN، افتح أي عمل علمي.
+2. اضغط "تسليمات" → "تسليم نسخة جديدة" → اسحب ملف PDF/DOCX.
+3. عند نجاح الرفع: ستظهر رسالة "تمّ الرفع والتسليم" + يظهر التسليم في القائمة بزر تنزيل.
+4. تحقّق في Supabase → Storage → `saei-uploads` أن الملف موجود تحت `works/<workId>/v1_...`.
+5. اضغط زر التنزيل: يجب أن يفتح الملف في تبويب جديد (signed URL يدوم ٥ دقائق).
+
+### ب. Resend Email
+1. أسند محكماً لعمل من واجهة الأعمال.
+2. تحقّق في صندوق المحكم البريدي أن وصلته رسالة "تمّ إسناد عمل علمي إليك للتحكيم" بقالب RTL.
+3. حالات أخرى يجب أن تُرسل بريداً: نقل المرحلة (للباحث + المنسقين)، تسليم تسليم جديد، تذكير الموعد، تجاوز الموعد.
+4. في Resend Dashboard → Emails يمكن مراجعة كل الرسائل المُرسلة.
+
+### ج. Vercel Cron
+1. Vercel → Project → Settings → Cron Jobs: يجب أن ترى `/api/cron/check-deadlines` مجدول `0 6 * * *`.
+2. لتشغيل يدوي للتحقق:
+   ```bash
+   curl -H "Authorization: Bearer $CRON_SECRET" https://your-app.vercel.app/api/cron/check-deadlines
+   ```
+3. الردّ يحتوي `{ ok: true, overdue, approaching, notified }`.
+4. الإشعارات تُسجَّل في DB (`Notification` table) + يُرسل بريد إن كان `RESEND_API_KEY` مضبوطاً.
+
+### د. اختبار الأذونات
+- باحث على عمله: يستطيع الرفع والتنزيل ✓
+- باحث على عمل آخر: 403 على endpoint التنزيل ✓
+- محكم مُسنَد لعمل: يستطيع التنزيل فقط ✓
+- محكم غير مُسنَد: 403 على التنزيل ✓
+- منسق/مدير: كامل الصلاحيات ✓
 
 ---
 

@@ -1,7 +1,8 @@
 // خدمة إشعارات داخل التطبيق — تكتب صفوفاً في Notification
-// — لاحقاً: hook لـResend/SendGrid لإرسال البريد عند ضبط مفاتيح API
+// + ترسل بريداً عبر Resend عند توفّر RESEND_API_KEY
 import { prisma } from "@/lib/prisma";
 import type { NotificationKind } from "@/generated/prisma/enums";
+import { sendEmail, isEmailConfigured } from "@/lib/email";
 
 interface CreateNotifyArgs {
   userId: string;
@@ -10,11 +11,36 @@ interface CreateNotifyArgs {
   body?: string | null;
   link?: string | null;
   metadata?: Record<string, unknown>;
+  /** قالب بريد جاهز — يُرسل بالتوازي مع تسجيل الإشعار */
+  email?: {
+    subject: string;
+    bodyHtml: string;
+    bodyText?: string;
+    actionPath?: string;
+    actionLabel?: string;
+  };
 }
 
-/** إنشاء إشعار واحد لمستخدم محدد */
+async function fireEmail(userId: string, email: NonNullable<CreateNotifyArgs["email"]>) {
+  if (!isEmailConfigured()) return;
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (!u?.email) return;
+  await sendEmail({
+    to: u.email,
+    subject: email.subject,
+    bodyHtml: email.bodyHtml,
+    bodyText: email.bodyText,
+    actionPath: email.actionPath,
+    actionLabel: email.actionLabel,
+  });
+}
+
+/** إنشاء إشعار واحد لمستخدم محدد + بريد اختياري */
 export async function notify(args: CreateNotifyArgs) {
-  return prisma.notification.create({
+  const created = await prisma.notification.create({
     data: {
       userId: args.userId,
       kind: args.kind,
@@ -24,15 +50,20 @@ export async function notify(args: CreateNotifyArgs) {
       metadata: (args.metadata ?? null) as never,
     },
   });
+  if (args.email) {
+    // غير منتظر — لا نريد عرقلة الـHTTP response لو Resend بطيء
+    void fireEmail(args.userId, args.email);
+  }
+  return created;
 }
 
-/** إشعار جماعي لقائمة من المستخدمين */
+/** إشعار جماعي لقائمة من المستخدمين + بريد لكل واحد */
 export async function notifyMany(
   userIds: string[],
   args: Omit<CreateNotifyArgs, "userId">
 ) {
   if (userIds.length === 0) return { count: 0 };
-  return prisma.notification.createMany({
+  const r = await prisma.notification.createMany({
     data: userIds.map((userId) => ({
       userId,
       kind: args.kind,
@@ -42,6 +73,12 @@ export async function notifyMany(
       metadata: (args.metadata ?? null) as never,
     })),
   });
+  if (args.email && isEmailConfigured()) {
+    for (const userId of userIds) {
+      void fireEmail(userId, args.email);
+    }
+  }
+  return r;
 }
 
 /** إشعار كل المستخدمين بدور معيّن (مثل المنسقين) */
@@ -56,9 +93,11 @@ export async function notifyRole(
   return notifyMany(users.map((u) => u.id), args);
 }
 
-/** placeholder للبريد الإلكتروني — يطبع log فقط؛ يُستبدل بـResend لاحقاً */
+/** إبقاء التوقيع للـcron القديم — الآن يُحوّل لـsendEmail الفعلي */
 export function emailPlaceholder(to: string, subject: string, body: string) {
-  console.log(`[EMAIL placeholder] to=${to} subject=${subject}`);
-  console.log(`  body: ${body.slice(0, 200)}${body.length > 200 ? "…" : ""}`);
-  // TODO: استبدل بـResend SDK عند إضافة RESEND_API_KEY
+  if (!isEmailConfigured()) {
+    console.log(`[email placeholder] to=${to} subject=${subject}`);
+    return;
+  }
+  void sendEmail({ to, subject, bodyHtml: `<p>${body}</p>` });
 }

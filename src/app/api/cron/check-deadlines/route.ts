@@ -5,7 +5,8 @@
 // — placeholder للبريد عبر emailPlaceholder (يُستبدل بـResend لاحقاً)
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notify, emailPlaceholder } from "@/lib/notify";
+import { notify } from "@/lib/notify";
+import { templates } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,21 +94,20 @@ export async function GET(req: NextRequest) {
     });
     if (exists) continue;
 
+    const tpl = templates.deadlineOverdue({
+      workTitle: w.title,
+      workId: w.id,
+      deadline: w.deadline.toISOString().slice(0, 10),
+    });
     await notify({
       userId: w.researcher.userId,
       kind: "DEADLINE_OVERDUE",
-      title: `تجاوز الموعد النهائي: "${w.title}"`,
+      title: tpl.subject,
       body: `الموعد كان ${w.deadline.toISOString().slice(0, 10)} — يُرجى التحديث.`,
       link: `/projects?work=${w.id}`,
       metadata: { workId: w.id },
+      email: tpl,
     });
-    if (w.researcher.user.email) {
-      emailPlaceholder(
-        w.researcher.user.email,
-        `تجاوز الموعد النهائي للعمل: ${w.title}`,
-        `الموعد كان ${w.deadline.toISOString().slice(0, 10)}.`
-      );
-    }
     notified++;
   }
 
@@ -127,21 +127,21 @@ export async function GET(req: NextRequest) {
       1,
       Math.ceil((w.deadline.getTime() - now.getTime()) / 86400_000)
     );
+    const tpl = templates.deadlineApproaching({
+      workTitle: w.title,
+      workId: w.id,
+      daysLeft: days,
+      deadline: w.deadline.toISOString().slice(0, 10),
+    });
     await notify({
       userId: w.researcher.userId,
       kind: "DEADLINE_APPROACHING",
-      title: `الموعد النهائي قارب: "${w.title}"`,
+      title: tpl.subject,
       body: `يتبقّى ${days} يوم/أيام (ينتهي ${w.deadline.toISOString().slice(0, 10)}).`,
       link: `/projects?work=${w.id}`,
       metadata: { workId: w.id, daysLeft: days },
+      email: tpl,
     });
-    if (w.researcher.user.email) {
-      emailPlaceholder(
-        w.researcher.user.email,
-        `تذكير بموعد العمل: ${w.title}`,
-        `يتبقّى ${days} يوم/أيام للموعد النهائي.`
-      );
-    }
     notified++;
   }
 

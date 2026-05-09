@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/api-auth";
 import { assignReviewer } from "@/lib/reviews-service";
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notify";
+import { templates } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -62,12 +63,18 @@ export async function POST(req: Request, { params }: Params) {
       select: { title: true, code: true },
     });
     if (reviewer?.user.id && work) {
+      const tpl = templates.reviewAssigned({
+        workCode: work.code,
+        workTitle: work.title,
+        dueDate: due ? due.toISOString().slice(0, 10) : undefined,
+      });
       await notify({
         userId: reviewer.user.id,
         kind: "REVIEW_ASSIGNED",
-        title: `تمّ إسناد عمل علمي إليك للتحكيم`,
+        title: tpl.subject,
         body: `${work.code} — ${work.title}${due ? ` (الموعد: ${due.toISOString().slice(0, 10)})` : ""}`,
         link: `/reviews`,
+        email: tpl,
       });
     }
 

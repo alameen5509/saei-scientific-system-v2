@@ -1,11 +1,28 @@
 "use client";
 
-// نافذة تسليمات العمل العلمي — قائمة الإصدارات + إضافة تسليم جديد
-// — في هذه المرحلة لا يوجد رفع فعلي للملف (Supabase Storage مستقبلاً)
-//   نحفظ فقط البيانات الوصفية: الاسم، النوع، الحجم، نوع التسليم
-// — عند توصيل Storage، نضيف input[type=file] ونملأ storagePath
-import { useCallback, useEffect, useState } from "react";
-import { FileUp, FileText, Loader2, Plus } from "lucide-react";
+// نافذة تسليمات العمل العلمي — قائمة الإصدارات + رفع فعلي عبر Supabase Storage
+// التدفّق:
+//   1) المستخدم يسحب/يختار ملفاً
+//   2) POST /api/works/[id]/submissions/upload-url → يرجع uploadUrl + storagePath
+//   3) PUT الملف على uploadUrl مباشرة (يتجاوز Vercel function body limit)
+//   4) POST /api/works/[id]/submissions مع storagePath لتسجيل الـrow
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
+import {
+  FileUp,
+  FileText,
+  Loader2,
+  Plus,
+  Download,
+  X,
+  Upload,
+  CheckCircle2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +32,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
-import { toArabicDigits, formatDate } from "@/lib/utils";
+import { toArabicDigits, formatDate, cn } from "@/lib/utils";
 
 export interface Submission {
   id: string;
@@ -55,24 +71,19 @@ const KIND_TONE: Record<Submission["kind"], "purple" | "amber" | "green"> = {
   FINAL: "green",
 };
 
-const ALLOWED_MIME = [
-  { label: "PDF (.pdf)", value: "application/pdf" },
-  { label: "Word (.doc)", value: "application/msword" },
-  {
-    label: "Word (.docx)",
-    value:
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  },
-];
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+const MAX_SIZE = 50 * 1024 * 1024;
 
 interface Props {
   workId: string | null;
   workTitle?: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  /** يُستدعى بعد التسليم الناجح لتحديث الواجهة الأم */
   onAfterSubmit?: () => void;
-  /** للأدوار التي يُسمح لها فقط بالعرض دون إضافة (مثلاً المحكم) */
   readOnly?: boolean;
 }
 
@@ -94,14 +105,15 @@ export function SubmissionsDialog({
   const [list, setList] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // نموذج إضافة
+  // نموذج رفع
   const [showForm, setShowForm] = useState(false);
-  const [fileName, setFileName] = useState("");
-  const [mimeType, setMimeType] = useState(ALLOWED_MIME[0].value);
-  const [size, setSize] = useState<number | "">("");
+  const [file, setFile] = useState<File | null>(null);
   const [kind, setKind] = useState<Submission["kind"]>("FIRST_DRAFT");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refetch = useCallback(async () => {
     if (!workId) return;
@@ -125,48 +137,116 @@ export function SubmissionsDialog({
   useEffect(() => {
     if (open && workId) {
       void refetch();
+      reset();
       setShowForm(false);
     }
   }, [open, workId, refetch]);
 
   function reset() {
-    setFileName("");
-    setMimeType(ALLOWED_MIME[0].value);
-    setSize("");
+    setFile(null);
     setKind("FIRST_DRAFT");
     setNotes("");
+    setProgress(0);
+  }
+
+  function pickFile(f: File) {
+    if (!ALLOWED_MIME.has(f.type) && !/\.(pdf|docx?)$/i.test(f.name)) {
+      toast.error("نوع غير مدعوم", {
+        description: "مسموح فقط: PDF, DOC, DOCX",
+      });
+      return;
+    }
+    if (f.size > MAX_SIZE) {
+      toast.error("الملف كبير جداً", {
+        description: `الحدّ الأقصى ٥٠ ميغابايت (الملف ${formatSize(f.size)})`,
+      });
+      return;
+    }
+    setFile(f);
+  }
+
+  function onDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files[0];
+    if (f) pickFile(f);
+  }
+
+  async function uploadFile(): Promise<{
+    storagePath: string;
+    version: number;
+  } | null> {
+    if (!file || !workId) return null;
+
+    // 1) طلب signed URL
+    setProgress(10);
+    const r1 = await fetch(`/api/works/${workId}/submissions/upload-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+      }),
+    });
+    const j1 = await r1.json();
+    if (!r1.ok || !j1.ok) {
+      throw new Error(j1.error || "تعذّر تجهيز الرفع");
+    }
+    setProgress(30);
+
+    // 2) PUT الملف مباشرة لـSupabase
+    const putRes = await fetch(j1.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!putRes.ok) {
+      throw new Error(`فشل رفع الملف: HTTP ${putRes.status}`);
+    }
+    setProgress(80);
+
+    return {
+      storagePath: j1.storagePath as string,
+      version: j1.version as number,
+    };
   }
 
   async function handleSubmit() {
-    if (!workId) return;
-    if (!fileName.trim() || fileName.length > 255) {
-      toast.error("أدخل اسم ملف صالح (أقل من ٢٥٥ حرفاً)");
-      return;
-    }
-    if (typeof size !== "number" || size <= 0) {
-      toast.error("أدخل حجم الملف بالبايت (رقم موجب)");
+    if (!workId || !file) {
+      toast.error("اختر ملفاً للرفع");
       return;
     }
     setSubmitting(true);
+    setProgress(0);
+
     try {
-      const r = await fetch(`/api/works/${workId}/submissions`, {
+      const uploaded = await uploadFile();
+      if (!uploaded) throw new Error("فشل الرفع");
+
+      // 3) تسجيل الـrow
+      const r2 = await fetch(`/api/works/${workId}/submissions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fileName: fileName.trim(),
-          mimeType,
-          size,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
           kind,
           notes: notes.trim() || null,
+          storagePath: uploaded.storagePath,
         }),
       });
-      const j = await r.json();
-      if (!r.ok || !j.ok) throw new Error(j.error || "فشل التسليم");
+      const j2 = await r2.json();
+      if (!r2.ok || !j2.ok) {
+        throw new Error(j2.error || "فشل تسجيل التسليم");
+      }
+      setProgress(100);
 
-      toast.success("تمّ تسجيل التسليم", {
-        description: j.stageAdvancedTo
-          ? `الإصدار ${toArabicDigits(j.submission.version)} — انتقل للمرحلة: ${j.stageAdvancedTo}`
-          : `الإصدار ${toArabicDigits(j.submission.version)}`,
+      toast.success("تمّ الرفع والتسليم", {
+        description: j2.stageAdvancedTo
+          ? `الإصدار ${toArabicDigits(j2.submission.version)} — انتقل للمرحلة: ${j2.stageAdvancedTo}`
+          : `الإصدار ${toArabicDigits(j2.submission.version)}`,
       });
       reset();
       setShowForm(false);
@@ -178,7 +258,17 @@ export function SubmissionsDialog({
       });
     } finally {
       setSubmitting(false);
+      setProgress(0);
     }
+  }
+
+  function downloadSubmission(s: Submission) {
+    if (!s.storagePath) {
+      toast.error("لا يوجد ملف لهذا التسليم");
+      return;
+    }
+    // فتح في تبويب جديد — السيرفر يعيد التوجيه إلى signed URL
+    window.open(`/api/works/${s.workId}/submissions/${s.id}/download`, "_blank");
   }
 
   return (
@@ -228,9 +318,7 @@ export function SubmissionsDialog({
                   <div className="text-xs text-stone-500 mt-0.5">
                     {formatSize(s.size)} · {formatDate(s.uploadedAt)}
                     {!s.storagePath && (
-                      <span className="ms-2 text-amber-700">
-                        (بدون ملف فعلي بعد — يحتاج تفعيل Supabase Storage)
-                      </span>
+                      <span className="ms-2 text-amber-700">(بدون ملف)</span>
                     )}
                   </div>
                   {s.notes && (
@@ -239,12 +327,23 @@ export function SubmissionsDialog({
                     </p>
                   )}
                 </div>
+                {s.storagePath && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => downloadSubmission(s)}
+                    title="تنزيل الملف"
+                    className="h-8 w-8"
+                  >
+                    <Download className="h-4 w-4 text-saei-purple-500" />
+                  </Button>
+                )}
               </div>
             ))
           )}
         </div>
 
-        {/* نموذج تسليم جديد */}
+        {/* نموذج رفع جديد */}
         {!readOnly && (
           <>
             {!showForm ? (
@@ -262,52 +361,66 @@ export function SubmissionsDialog({
                   <FileUp className="h-4 w-4" />
                   تسليم نسخة جديدة
                 </div>
-                <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2">
-                  ⚠️ في هذه المرحلة يُسجَّل سجل وصفي فقط. الرفع الفعلي للملف
-                  يحتاج إعداد Supabase Storage.
-                </p>
 
-                <div>
-                  <Label>اسم الملف</Label>
-                  <Input
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
-                    placeholder="thesis_v1.pdf"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>نوع الملف</Label>
-                    <Select
-                      value={mimeType}
-                      onValueChange={(v) => setMimeType(v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ALLOWED_MIME.map((m) => (
-                          <SelectItem key={m.value} value={m.value}>
-                            {m.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>الحجم (بايت)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={size}
-                      onChange={(e) =>
-                        setSize(e.target.value === "" ? "" : Number(e.target.value))
-                      }
-                      placeholder="1048576"
+                {/* منطقة السحب والإفلات */}
+                {!file ? (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={onDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      "rounded-2xl border-2 border-dashed transition-colors p-6 text-center cursor-pointer",
+                      dragOver
+                        ? "border-saei-purple-500 bg-saei-purple-100"
+                        : "border-saei-purple-300 bg-white hover:bg-saei-purple-50"
+                    )}
+                  >
+                    <Upload className="h-8 w-8 mx-auto text-saei-purple-500 mb-2" />
+                    <p className="font-bold text-saei-purple-700">
+                      اسحب الملف هنا أو اضغط للاختيار
+                    </p>
+                    <p className="text-xs text-stone-600 mt-1">
+                      PDF, DOC, DOCX — الحد الأقصى ٥٠ ميغابايت
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) pickFile(f);
+                      }}
+                      className="hidden"
                     />
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-xl bg-white border border-saei-purple-200 p-3 flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-saei-purple-700 truncate">
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        {formatSize(file.size)} · {file.type || "غير معروف"}
+                      </p>
+                    </div>
+                    {!submitting && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setFile(null)}
+                        className="h-8 w-8"
+                        aria-label="إزالة"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <Label>نوع التسليم</Label>
@@ -333,21 +446,36 @@ export function SubmissionsDialog({
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="ملاحظات للمنسق..."
                     rows={2}
+                    disabled={submitting}
                   />
                 </div>
+
+                {submitting && progress > 0 && (
+                  <div>
+                    <div className="text-xs text-stone-600 mb-1">
+                      جارٍ الرفع... {toArabicDigits(progress)}%
+                    </div>
+                    <div className="h-2 rounded-full bg-saei-purple-100 overflow-hidden">
+                      <div
+                        className="h-full bg-saei-hero transition-all"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2">
                   <Button
                     variant="primary"
                     onClick={() => void handleSubmit()}
-                    disabled={submitting}
+                    disabled={submitting || !file}
                   >
                     {submitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <FileUp className="h-4 w-4" />
                     )}
-                    تأكيد التسليم
+                    رفع وتسليم
                   </Button>
                   <Button
                     variant="ghost"

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
 import { VALID_STATUS_TRANSITIONS } from "@/lib/contracts-service";
 import { notifyRole, notify } from "@/lib/notify";
+import { templates } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -85,12 +86,18 @@ export async function POST(req: Request, { params }: Params) {
     });
   } else if (to === "SIGNED") {
     if (c.work?.researcher.userId) {
+      const tpl = templates.contractSigned({
+        contractTitle: updated.title,
+        contractId: updated.id,
+        workTitle: c.work.title,
+      });
       await notify({
         userId: c.work.researcher.userId,
         kind: "CONTRACT_SIGNED",
         title: `وُقِّع عقد متعلّق بعملك: "${c.work.title}"`,
         body: updated.title,
         link: `/contracts/${updated.id}`,
+        email: tpl,
       });
     }
     await notifyRole("ADMIN", {

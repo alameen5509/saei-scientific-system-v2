@@ -1,9 +1,20 @@
-// POST /api/works/[id]/submissions — تسليم نسخة جديدة (الباحث على عمله، أو منسق)
-// GET  /api/works/[id]/submissions — قائمة التسليمات (الباحث على عمله، الإدارة على الكل)
+// POST /api/works/[id]/submissions — تسجيل تسليم بعد رفع الملف فعلياً
+// GET  /api/works/[id]/submissions — قائمة التسليمات
+//
+// تدفّق الرفع المتكامل:
+//   1) العميل: POST /api/works/[id]/submissions/upload-url مع metadata
+//   2) العميل: PUT الملف على uploadUrl إلى Supabase Storage مباشرة
+//   3) العميل: POST هذا المسار مع storagePath (والباقي) لتسجيل الـrow
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { notify, notifyRole } from "@/lib/notify";
+import {
+  isStorageConfigured,
+  objectExists,
+  deleteObject,
+} from "@/lib/storage";
+import { templates } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +28,7 @@ const ALLOWED_MIME = new Set([
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
-const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_SIZE = 50 * 1024 * 1024;
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const me = await requireAuth();
@@ -63,7 +74,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
   }
 
-  // أذونات التسليم: الباحث على عمله، أو منسّق/مدير
   const isOwner = me.role === "RESEARCHER" && work.researcher.userId === me.id;
   const isCoordinator =
     me.role === "ADMIN" ||
@@ -114,7 +124,30 @@ export async function POST(req: NextRequest, { params }: Params) {
       { status: 400 }
     );
 
-  // تحديد رقم الإصدار التلقائي
+  // إذا Storage مهيّأ، يجب أن يكون storagePath موجوداً وأن الملف رُفع فعلاً
+  if (isStorageConfigured()) {
+    if (!storagePath || typeof storagePath !== "string") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "ينقص storagePath — يجب رفع الملف أولاً عبر /upload-url",
+        },
+        { status: 400 }
+      );
+    }
+    const exists = await objectExists(storagePath);
+    if (!exists) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "الملف لم يُرفع بعد إلى Storage — جرّب الرفع مجدداً",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
+  // تحديد رقم الإصدار
   const last = await prisma.workSubmission.findFirst({
     where: { workId: params.id },
     orderBy: { version: "desc" },
@@ -122,28 +155,34 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   const version = (last?.version ?? 0) + 1;
 
-  const created = await prisma.workSubmission.create({
-    data: {
-      workId: params.id,
-      version,
-      kind: kind as "FIRST_DRAFT" | "REVISION" | "FINAL",
-      fileName,
-      mimeType,
-      size,
-      storagePath,
-      uploadedBy: me.id,
-      notes,
-    },
-  });
+  let created;
+  try {
+    created = await prisma.workSubmission.create({
+      data: {
+        workId: params.id,
+        version,
+        kind: kind as "FIRST_DRAFT" | "REVISION" | "FINAL",
+        fileName,
+        mimeType,
+        size,
+        storagePath,
+        uploadedBy: me.id,
+        notes,
+      },
+    });
+  } catch (err) {
+    // تنظيف الملف إن فشلت كتابة DB
+    if (storagePath && isStorageConfigured()) {
+      void deleteObject(storagePath);
+    }
+    throw err;
+  }
 
-  // ——— نقل المرحلة تلقائياً عند تسليم أوّلي/منقّح ———
+  // ——— نقل المرحلة تلقائياً ———
   let advancedTo: string | null = null;
   if (kind === "FIRST_DRAFT" && work.stageCode === "WRITING") {
     advancedTo = "FIRST_SUBMISSION";
-  } else if (
-    kind === "REVISION" &&
-    work.stageCode === "REVISION_REQUESTED"
-  ) {
+  } else if (kind === "REVISION" && work.stageCode === "REVISION_REQUESTED") {
     advancedTo = "REVISED_SUBMISSION";
   }
   if (advancedTo) {
@@ -153,24 +192,39 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
   }
 
-  // ——— إشعارات ———
-  // 1. للباحث (إذا كان المنسّق هو من رفع)
+  // ——— إشعارات + بريد ———
   if (!isOwner) {
+    const tpl = templates.submissionReceived({
+      workTitle: work.title,
+      version,
+      workId: work.id,
+      fileName,
+      forResearcher: true,
+    });
     await notify({
       userId: work.researcher.userId,
       kind: "SUBMISSION_RECEIVED",
-      title: `تمّ تسجيل تسليم جديد لعملك "${work.title}"`,
-      body: `الإصدار رقم ${version} — ${fileName}`,
+      title: tpl.subject,
+      body: `الإصدار ${version} — ${fileName}`,
       link: `/projects?work=${work.id}`,
+      email: tpl,
     });
   }
-  // 2. للمنسقين (إذا الباحث هو من رفع)
   if (isOwner) {
+    const tpl = templates.submissionReceived({
+      workTitle: work.title,
+      version,
+      workId: work.id,
+      fileName,
+      researcherName: work.researcher.displayName,
+      forResearcher: false,
+    });
     await notifyRole("RESEARCH_COORDINATOR", {
       kind: "SUBMISSION_RECEIVED",
-      title: `تسليم جديد من باحث: "${work.title}"`,
+      title: tpl.subject,
       body: `${work.researcher.displayName} رفع الإصدار ${version}.`,
       link: `/projects?work=${work.id}`,
+      email: tpl,
     });
   }
 

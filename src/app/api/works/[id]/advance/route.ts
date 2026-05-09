@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/api-auth";
 import { findNextStageCode, serializeWork } from "@/lib/works-service";
 import { notify, notifyRole } from "@/lib/notify";
 import { STAGE_LABEL, type WorkStage } from "@/types/works";
+import { templates } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -54,21 +55,37 @@ export async function POST(_: Request, { params }: Params) {
       },
     });
 
-    // ——— إشعارات: للباحث + للمنسقين ———
-    const stageLabel =
-      STAGE_LABEL[nextCode as WorkStage] ?? nextCode;
+    // ——— إشعارات + بريد ———
+    const stageLabel = STAGE_LABEL[nextCode as WorkStage] ?? nextCode;
+
+    const tplResearcher = templates.stageChanged({
+      workTitle: updated.title,
+      stageLabel,
+      workId: updated.id,
+      isResearcher: true,
+    });
     await notify({
       userId: updated.researcher.userId,
       kind: "STAGE_CHANGED",
-      title: `انتقل عملك "${updated.title}" إلى مرحلة جديدة`,
+      title: tplResearcher.subject,
       body: `المرحلة الحالية: ${stageLabel}`,
       link: `/projects?work=${updated.id}`,
+      email: tplResearcher,
+    });
+
+    const tplCoord = templates.stageChanged({
+      workTitle: updated.title,
+      stageLabel,
+      workId: updated.id,
+      isResearcher: false,
+      researcherName: updated.researcher.displayName,
     });
     await notifyRole("RESEARCH_COORDINATOR", {
       kind: "STAGE_CHANGED",
-      title: `تحديث مرحلة: ${updated.title}`,
+      title: tplCoord.subject,
       body: `الباحث: ${updated.researcher.displayName} — المرحلة: ${stageLabel}`,
       link: `/projects?work=${updated.id}`,
+      email: tplCoord,
     });
 
     return NextResponse.json({ ok: true, work: serializeWork(updated) });
