@@ -25,7 +25,13 @@ const ACTIVE_STAGES = [
   "IN_PRODUCTION",
 ];
 
-const APPROACH_DAYS = 7;
+// ٣ مستويات تنبيه — يحدد urgency في الـmetadata
+const ALERT_LEVELS = [
+  { days: 7, level: "notice" as const, label: "تنبيه أوّلي" },
+  { days: 3, level: "warning" as const, label: "تحذير" },
+  { days: 1, level: "urgent" as const, label: "عاجل" },
+];
+const APPROACH_DAYS = 7; // الحد الأعلى — كل ما داخل الأسبوع
 
 export async function GET(req: NextRequest) {
   // — مصادقة Vercel Cron —
@@ -112,21 +118,49 @@ export async function GET(req: NextRequest) {
   }
 
   for (const w of approaching) {
+    const days = Math.max(
+      1,
+      Math.ceil((w.deadline.getTime() - now.getTime()) / 86400_000)
+    );
+
+    // اختر أعلى مستوى تنبيه ينطبق (urgent ≤1، warning ≤3، notice ≤7)
+    const level =
+      days <= 1
+        ? ALERT_LEVELS[2]
+        : days <= 3
+        ? ALERT_LEVELS[1]
+        : ALERT_LEVELS[0];
+
+    // dedup لكل مستوى منفصل: لا نُكرّر إشعار نفس المستوى لنفس العمل في نفس اليوم
     const exists = await prisma.notification.findFirst({
       where: {
         userId: w.researcher.userId,
         kind: "DEADLINE_APPROACHING",
         createdAt: { gte: yesterday },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        metadata: { path: ["workId"], equals: w.id } as any,
+        metadata: {
+          path: ["workId", "level"],
+          array_contains: [w.id, level.level],
+        } as any,
       },
     });
     if (exists) continue;
 
-    const days = Math.max(
-      1,
-      Math.ceil((w.deadline.getTime() - now.getTime()) / 86400_000)
-    );
+    // dedup أبسط: ابحث عن نفس العمل + نفس المستوى في metadata.level
+    const sameLevel = await prisma.notification.findFirst({
+      where: {
+        userId: w.researcher.userId,
+        kind: "DEADLINE_APPROACHING",
+        createdAt: { gte: yesterday },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        AND: [
+          { metadata: { path: ["workId"], equals: w.id } as any },
+          { metadata: { path: ["level"], equals: level.level } as any },
+        ],
+      },
+    });
+    if (sameLevel) continue;
+
     const tpl = templates.deadlineApproaching({
       workTitle: w.title,
       workId: w.id,
@@ -136,10 +170,16 @@ export async function GET(req: NextRequest) {
     await notify({
       userId: w.researcher.userId,
       kind: "DEADLINE_APPROACHING",
-      title: tpl.subject,
-      body: `يتبقّى ${days} يوم/أيام (ينتهي ${w.deadline.toISOString().slice(0, 10)}).`,
+      title: `[${level.label}] ${tpl.subject}`,
+      body: `يتبقّى ${days} يوم/أيام (ينتهي ${w.deadline
+        .toISOString()
+        .slice(0, 10)}).`,
       link: `/projects?work=${w.id}`,
-      metadata: { workId: w.id, daysLeft: days },
+      metadata: {
+        workId: w.id,
+        daysLeft: days,
+        level: level.level,
+      },
       email: tpl,
     });
     notified++;
