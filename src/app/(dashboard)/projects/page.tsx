@@ -47,6 +47,7 @@ import {
 import { WorksPageSkeleton } from "@/components/works/WorksSkeleton";
 import { AssignReviewersDialog } from "@/components/works/AssignReviewersDialog";
 import { SubmissionsDialog } from "@/components/works/SubmissionsDialog";
+import { GenerateContractDialog } from "@/components/works/GenerateContractDialog";
 import { useWorks } from "@/components/works/use-works";
 import {
   isOverdue,
@@ -96,6 +97,10 @@ export default function ProjectsPage() {
 
   // ————— التسليمات —————
   const [submissionsTarget, setSubmissionsTarget] =
+    useState<ScientificWork | null>(null);
+
+  // ————— توليد عقد —————
+  const [contractTarget, setContractTarget] =
     useState<ScientificWork | null>(null);
 
   // ————— الفلترة + البحث —————
@@ -431,6 +436,9 @@ export default function ProjectsPage() {
               isResearcher ? undefined : (w) => setAssignTarget(w)
             }
             onSubmissions={(w) => setSubmissionsTarget(w)}
+            onGenerateContract={
+              isResearcher ? undefined : (w) => setContractTarget(w)
+            }
             readOnly={isResearcher}
           />
 
@@ -494,6 +502,13 @@ export default function ProjectsPage() {
         workTitle={submissionsTarget?.title}
         onOpenChange={(v) => !v && setSubmissionsTarget(null)}
         onAfterSubmit={() => void refetch()}
+      />
+
+      {/* توليد عقد من العمل */}
+      <GenerateContractDialog
+        open={!!contractTarget}
+        work={contractTarget}
+        onOpenChange={(v) => !v && setContractTarget(null)}
       />
     </div>
   );

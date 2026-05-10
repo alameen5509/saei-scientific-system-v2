@@ -9,7 +9,9 @@ import {
   Trash2,
   Users,
   FileText,
+  FileSignature,
 } from "lucide-react";
+import type { WorkStage } from "@/types/works";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +23,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { nextStage, STAGE_LABEL, type ScientificWork } from "@/types/works";
 
+// المراحل التي يُتاح فيها توليد عقد — APPROVED فما بعد
+const CONTRACT_ELIGIBLE_STAGES: WorkStage[] = [
+  "APPROVED",
+  "IN_PRODUCTION",
+  "PUBLISHED",
+  "ARCHIVED",
+];
+
 interface Props {
   work: ScientificWork;
   onView: (w: ScientificWork) => void;
@@ -30,6 +40,8 @@ interface Props {
   onAssignReviewers?: (w: ScientificWork) => void;
   /** يفتح نافذة التسليمات — متاح للباحث على عمله وللإدارة */
   onSubmissions?: (w: ScientificWork) => void;
+  /** يفتح نافذة توليد عقد من بيانات العمل — للإدارة فقط، APPROVED فما بعد */
+  onGenerateContract?: (w: ScientificWork) => void;
   /** يخفي إجراءات الكتابة (تعديل/حذف/نقل) — للباحث في وضع المشاهدة */
   readOnly?: boolean;
 }
@@ -42,9 +54,14 @@ export function WorkActionsMenu({
   onDelete,
   onAssignReviewers,
   onSubmissions,
+  onGenerateContract,
   readOnly = false,
 }: Props) {
   const next = nextStage(work.stage);
+  const canGenerateContract =
+    !!onGenerateContract &&
+    !readOnly &&
+    CONTRACT_ELIGIBLE_STAGES.includes(work.stage);
 
   return (
     <DropdownMenu>
@@ -88,6 +105,17 @@ export function WorkActionsMenu({
                 <ArrowLeft className="h-4 w-4 text-saei-teal" />
                 نقل إلى: {STAGE_LABEL[next]}
               </DropdownMenuItem>
+            )}
+            {canGenerateContract && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => onGenerateContract!(work)}
+                >
+                  <FileSignature className="h-4 w-4 text-saei-gold-700" />
+                  إنشاء عقد من هذا العمل
+                </DropdownMenuItem>
+              </>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
